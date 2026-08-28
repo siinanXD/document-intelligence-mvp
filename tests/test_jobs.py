@@ -139,7 +139,7 @@ async def test_a_failure_with_no_attempts_left_stays_failed(db_session, tenant, 
         tenant_id=tenant.id,
         job_id=job.id,
         worker_id="worker-1",
-        error="unsupported format"
+        error="unsupported format",
     )
 
     assert failed.status is JobStatus.failed
@@ -156,7 +156,8 @@ async def test_a_long_error_is_truncated_rather_than_rejected(db_session, tenant
         tenant_id=tenant.id,
         job_id=job.id,
         worker_id="worker-1",
-        error="x" * 5000)
+        error="x" * 5000,
+    )
 
     assert len(failed.last_error) == 2000
 
