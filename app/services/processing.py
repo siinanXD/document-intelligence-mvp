@@ -132,9 +132,14 @@ async def process_job(
 
 
 async def mark_failed(
-    session: AsyncSession, *, job: IngestionJob, reason: str, retry_delay
+    session: AsyncSession, *, job: IngestionJob, worker_id: str, reason: str, retry_delay
 ) -> None:
     """Record a failed attempt on both the job and its document.
+
+    `worker_id` must be the worker holding the claim: the queue only transitions
+    a job for the worker that took it, so a stale or foreign worker changes
+    nothing here either - `updated` comes back None and the document is left
+    alone.
 
     `reason` is a short diagnostic. It must never carry document text: the
     parser is responsible for not putting any into its exception messages, and
@@ -156,6 +161,7 @@ async def mark_failed(
         session,
         tenant_id=job.tenant_id,
         job_id=job.id,
+        worker_id=worker_id,
         error=reason,
         retry_delay=retry_delay,
     )

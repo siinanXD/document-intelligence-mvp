@@ -196,7 +196,11 @@ async def test_a_retryable_failure_leaves_the_document_queued(
     document, job = await _queued(db_session, storage, tenant, make_document)
 
     await mark_failed(
-        db_session, job=job, reason="ParsingError: unreadable", retry_delay=timedelta(seconds=1)
+        db_session,
+        job=job,
+        worker_id="worker-1",
+        reason="ParsingError: unreadable",
+        retry_delay=timedelta(seconds=1),
     )
 
     assert document.status is DocumentStatus.queued
@@ -217,6 +221,7 @@ async def test_the_last_failure_marks_the_document_failed(
     await mark_failed(
         db_session,
         job=claimed[0],
+        worker_id="worker-1",
         reason="ParsingError: unreadable",
         retry_delay=timedelta(seconds=1),
     )
@@ -232,6 +237,7 @@ async def test_a_failure_reason_carries_no_document_text(
     await mark_failed(
         db_session,
         job=job,
+        worker_id="worker-1",
         reason="ParsingError: docling failed to convert the document (ValueError)",
         retry_delay=timedelta(seconds=1),
     )

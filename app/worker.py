@@ -52,7 +52,12 @@ async def process_one_batch(
                 async with session.begin():
                     await session.merge(job)
                     await process_job(session, storage, parser, job=job)
-                    await jobs_service.finish(session, tenant_id=job.tenant_id, job_id=job.id)
+                    await jobs_service.finish(
+                        session,
+                        tenant_id=job.tenant_id,
+                        job_id=job.id,
+                        worker_id=worker_id,
+                    )
             except RETRYABLE_ERRORS as exc:
                 failure = f"{type(exc).__name__}: {exc}"
             except Exception as exc:
@@ -64,7 +69,13 @@ async def process_one_batch(
         if failure is not None:
             async with sessionmaker() as failure_session, failure_session.begin():
                 await failure_session.merge(job)
-                await mark_failed(failure_session, job=job, reason=failure, retry_delay=retry_delay)
+                await mark_failed(
+                    failure_session,
+                    job=job,
+                    worker_id=worker_id,
+                    reason=failure,
+                    retry_delay=retry_delay,
+                )
 
         handled += 1
 
