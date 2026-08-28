@@ -42,8 +42,20 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 
 
 async def dispose_engine() -> None:
-    """Release pooled connections. Called on application shutdown."""
-    if get_engine.cache_info().currsize:
-        await get_engine().dispose()
-        get_engine.cache_clear()
-        get_sessionmaker.cache_clear()
+    """Release pooled connections. Called on application shutdown.
+
+    Only disposes an engine that was actually built, so shutting down an app
+    that never touched the database does not open a connection pool in order
+    to close it.
+    """
+    if get_engine.cache_info().currsize == 0:
+        return
+    engine = get_engine()
+    reset_engine()
+    await engine.dispose()
+
+
+def reset_engine() -> None:
+    """Drop the cached engine and sessionmaker without disposing them."""
+    get_engine.cache_clear()
+    get_sessionmaker.cache_clear()

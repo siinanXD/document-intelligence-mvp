@@ -9,12 +9,13 @@ from fastapi import FastAPI
 from app import __version__
 from app.api.health import router as health_router
 from app.core.db import dispose_engine
-from app.core.qdrant import close_qdrant_client
+from app.core.qdrant import close_qdrant_client, warm_qdrant_client
 from app.core.settings import get_settings
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    await warm_qdrant_client()
     yield
     await dispose_engine()
     await close_qdrant_client()
