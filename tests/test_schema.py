@@ -237,9 +237,7 @@ async def test_profile_tenant_must_match_its_document(
         await db_session.flush()
 
 
-async def test_job_tenant_must_match_its_document(
-    db_session, tenant, other_tenant, make_document
-):
+async def test_job_tenant_must_match_its_document(db_session, tenant, other_tenant, make_document):
     from app.models import IngestionJob
 
     document = await make_document(tenant)
