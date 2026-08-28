@@ -18,6 +18,7 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     String,
@@ -129,6 +130,7 @@ class Document(Base):
     )
 
     __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_documents_tenant_id_id"),
         # Exact-duplicate detection is per tenant, and a soft-deleted document
         # must not block re-uploading the same bytes.
         Index(
@@ -160,9 +162,7 @@ class Chunk(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
-    document_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
-    )
+    document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
 
     ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
@@ -181,6 +181,12 @@ class Chunk(Base):
     document: Mapped[Document] = relationship(back_populates="chunks")
 
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "document_id"],
+            ["documents.tenant_id", "documents.id"],
+            name="fk_chunks_tenant_document",
+            ondelete="CASCADE",
+        ),
         UniqueConstraint("document_id", "ordinal", name="uq_chunks_document_ordinal"),
         UniqueConstraint("tenant_id", "source_id", name="uq_chunks_tenant_source_id"),
         Index("ix_chunks_tenant_document", "tenant_id", "document_id"),
@@ -197,9 +203,7 @@ class DocumentProfile(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
-    document_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
-    )
+    document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
 
     language: Mapped[str | None] = mapped_column(String(16), nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -225,6 +229,12 @@ class DocumentProfile(Base):
     updated_at: Mapped[datetime] = _updated_at()
 
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "document_id"],
+            ["documents.tenant_id", "documents.id"],
+            name="fk_document_profiles_tenant_document",
+            ondelete="CASCADE",
+        ),
         UniqueConstraint("document_id", name="uq_document_profiles_document"),
         Index("ix_document_profiles_tenant", "tenant_id"),
     )
@@ -239,12 +249,8 @@ class DocumentRelation(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
-    source_document_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
-    )
-    target_document_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
-    )
+    source_document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    target_document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
 
     relation_type: Mapped[RelationType] = mapped_column(
         Enum(RelationType, name="relation_type", native_enum=True), nullable=False
@@ -254,6 +260,18 @@ class DocumentRelation(Base):
     created_at: Mapped[datetime] = _created_at()
 
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "source_document_id"],
+            ["documents.tenant_id", "documents.id"],
+            name="fk_document_relations_tenant_source",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "target_document_id"],
+            ["documents.tenant_id", "documents.id"],
+            name="fk_document_relations_tenant_target",
+            ondelete="CASCADE",
+        ),
         UniqueConstraint(
             "tenant_id",
             "source_document_id",
@@ -282,9 +300,7 @@ class IngestionJob(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
-    document_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
-    )
+    document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
 
     status: Mapped[JobStatus] = mapped_column(
         Enum(JobStatus, name="job_status", native_enum=True),
@@ -312,6 +328,12 @@ class IngestionJob(Base):
     updated_at: Mapped[datetime] = _updated_at()
 
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "document_id"],
+            ["documents.tenant_id", "documents.id"],
+            name="fk_ingestion_jobs_tenant_document",
+            ondelete="CASCADE",
+        ),
         # One live job per document: re-queueing a document that is already
         # waiting or running must not create a second worker for it.
         Index(

@@ -108,18 +108,33 @@ async def claim(session: AsyncSession, *, worker_id: str, limit: int = 1) -> lis
     return list(result.scalars().all())
 
 
-async def finish(session: AsyncSession, *, tenant_id, job_id) -> IngestionJob | None:
-    """Mark a claimed job finished. Returns None if it is not this tenant's."""
-    job = await get_job(session, tenant_id=tenant_id, job_id=job_id)
-    if job is None:
-        return None
+async def finish(
+    session: AsyncSession, *, tenant_id, job_id, worker_id: str
+) -> IngestionJob | None:
+    """Finish only a processing job claimed by this worker.
 
-    job.status = JobStatus.finished
-    job.last_error = None
-    job.claimed_at = None
-    job.claimed_by = None
-    await session.flush()
-    return job
+    The predicate and transition are one statement, so a stale or foreign
+    worker cannot win a check-then-update race.
+    """
+    result = await session.execute(
+        update(IngestionJob)
+        .where(
+            IngestionJob.id == job_id,
+            IngestionJob.tenant_id == tenant_id,
+            IngestionJob.status == JobStatus.processing,
+            IngestionJob.claimed_by == worker_id,
+        )
+        .values(
+            status=JobStatus.finished,
+            last_error=None,
+            claimed_at=None,
+            claimed_by=None,
+            updated_at=func.now(),
+        )
+        .returning(IngestionJob)
+        .execution_options(synchronize_session="fetch")
+    )
+    return result.scalars().first()
 
 
 async def fail(
@@ -127,18 +142,31 @@ async def fail(
     *,
     tenant_id,
     job_id,
+    worker_id: str,
     error: str,
     retry_delay: timedelta = DEFAULT_RETRY_DELAY,
 ) -> IngestionJob | None:
-    """Record a failed attempt, re-queueing it unless the attempts are spent.
+    """Fail only a processing job claimed by this worker.
 
-    `error` is a short diagnostic message. Never pass document content, a
-    prompt or a completion: this column is read by anyone with database access.
+    The row lock makes the ownership check and retry decision one atomic state
+    transition. A stale, foreign or duplicate completion returns None.
     """
-    job = await get_job(session, tenant_id=tenant_id, job_id=job_id)
+    result = await session.execute(
+        select(IngestionJob)
+        .where(
+            IngestionJob.id == job_id,
+            IngestionJob.tenant_id == tenant_id,
+            IngestionJob.status == JobStatus.processing,
+            IngestionJob.claimed_by == worker_id,
+        )
+        .with_for_update()
+    )
+    job = result.scalars().first()
     if job is None:
         return None
 
+    # This is a diagnostic message. Never pass document content, a prompt or a
+    # completion: this column is read by anyone with database access.
     job.last_error = error[:2000]
     job.claimed_at = None
     job.claimed_by = None
