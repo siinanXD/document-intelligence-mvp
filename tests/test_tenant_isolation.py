@@ -115,12 +115,15 @@ async def test_another_tenant_cannot_finish_or_fail_a_job(
     document = await make_document(tenant)
     job = await jobs.enqueue(db_session, tenant_id=tenant.id, document_id=document.id)
 
-    assert await jobs.finish(
+    assert (
+        await jobs.finish(
             db_session,
             tenant_id=other_tenant.id,
             job_id=job.id,
             worker_id="attacker",
-        ) is None
+        )
+        is None
+    )
     assert (
         await jobs.fail(
             db_session,
