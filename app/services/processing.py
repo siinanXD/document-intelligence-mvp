@@ -13,10 +13,13 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Chunk, Document, DocumentStatus, IngestionJob
+from app.providers.base import EmbeddingProvider
 from app.providers.parsing import DocumentParser, ParsingError
 from app.providers.storage import ObjectNotFoundError, StorageBackend
 from app.services import jobs as jobs_service
+from app.services.indexing import IndexingError, index_document
 from app.services.normalization import content_hash, normalize_text, source_id_for
+from app.services.vector_store import VectorStoreError, VectorStoreService
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +29,7 @@ class ProcessingOutcome:
     document_id: object
     chunk_count: int
     content_duplicate_of: object | None
+    indexed: int = 0
 
 
 def normalized_key_for(document: Document) -> str:
@@ -39,6 +43,8 @@ async def process_job(
     parser: DocumentParser,
     *,
     job: IngestionJob,
+    embeddings: EmbeddingProvider | None = None,
+    vector_store: VectorStoreService | None = None,
 ) -> ProcessingOutcome:
     """Take one claimed job from `processing` to a finished document.
 
@@ -113,6 +119,23 @@ async def process_job(
     document.content_hash = digest
     document.normalized_key = normalized_key
     document.parser_name = parser.name
+    await session.flush()
+
+    # Indexing shares the job's transaction: a document reads `ready` only once
+    # its chunks are searchable, so nothing can be listed as ready and then
+    # return nothing when searched.
+    indexed = 0
+    if embeddings is not None and vector_store is not None:
+        indexed = (
+            await index_document(
+                session,
+                embeddings,
+                vector_store,
+                tenant_id=document.tenant_id,
+                document_id=document.id,
+            )
+        ).indexed
+
     document.status = DocumentStatus.ready
     await session.flush()
 
@@ -122,12 +145,14 @@ async def process_job(
             "tenant_id": str(document.tenant_id),
             "document_id": str(document.id),
             "chunk_count": len(parsed.chunks),
+            "indexed": indexed,
         },
     )
     return ProcessingOutcome(
         document_id=document.id,
         chunk_count=len(parsed.chunks),
         content_duplicate_of=duplicate_of,
+        indexed=indexed,
     )
 
 
@@ -180,4 +205,4 @@ async def mark_failed(
     )
 
 
-RETRYABLE_ERRORS = (ParsingError, ObjectNotFoundError)
+RETRYABLE_ERRORS = (ParsingError, ObjectNotFoundError, IndexingError, VectorStoreError)

@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from app import __version__
 from app.api.documents import router as documents_router
 from app.api.health import router as health_router
+from app.api.search import router as search_router
 from app.core.db import dispose_engine
 from app.core.qdrant import close_qdrant_client, warm_qdrant_client
 from app.core.settings import get_settings
@@ -28,6 +29,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title=settings.app_name, version=__version__, lifespan=lifespan)
     app.include_router(health_router)
     app.include_router(documents_router)
+    app.include_router(search_router)
     return app
 
 

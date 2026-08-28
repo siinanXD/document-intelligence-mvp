@@ -65,6 +65,24 @@ part of the hardening work. Supported uploads are PDF, DOCX, PPTX, XLSX, HTML,
 Markdown and plain text; the extension, the declared content type and the
 leading bytes all have to agree.
 
+### Searching
+
+```bash
+curl -X POST http://127.0.0.1:8000/search \
+  -H "X-Tenant-Id: <tenant uuid>" \
+  -H "content-type: application/json" \
+  -d '{"query": "payment terms", "limit": 5}'
+```
+
+Optionally narrow to particular documents with `"document_ids": ["..."]`. The
+filter can only narrow: every Qdrant query carries the tenant filter, built by
+the retrieval service rather than by callers, so naming another tenant's
+document matches nothing.
+
+Results carry the score from the index and the text and provenance from
+PostgreSQL. Qdrant holds identifiers only - no chunk text - so the collection
+can be rebuilt at any time and a breach of it yields ids rather than documents.
+
 ### Running the worker
 
 ```bash
@@ -75,7 +93,11 @@ python -m app.worker
 The worker claims queued ingestion jobs from PostgreSQL, parses each document
 with Docling, normalises the text, computes `content_hash`, stores the parsed
 representation for later reindexing, and writes chunks with their provenance.
-It runs from the same project as the API - one codebase, two entry points.
+It then embeds those chunks and indexes them in Qdrant, in the same
+transaction, so a document reads `ready` only once it is actually searchable.
+It runs from the same project as the API - one codebase, two entry points, and
+it refuses to start without an embedding provider rather than quietly marking
+documents ready that answer nothing.
 
 **Docling needs its models.** The PDF pipeline downloads a layout model on
 first use, and the `HybridChunker` downloads a tokenizer. Left to itself that

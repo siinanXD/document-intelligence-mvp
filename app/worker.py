@@ -15,17 +15,29 @@ from datetime import timedelta
 
 from app.core.db import dispose_engine, get_sessionmaker
 from app.core.settings import get_settings
+from app.providers.base import EmbeddingProvider
 from app.providers.parsing import DocumentParser
-from app.providers.registry import get_document_parser, get_storage_backend
+from app.providers.registry import (
+    get_document_parser,
+    get_embedding_provider,
+    get_storage_backend,
+)
 from app.providers.storage import StorageBackend
 from app.services import jobs as jobs_service
 from app.services.processing import RETRYABLE_ERRORS, mark_failed, process_job
+from app.services.vector_store import VectorStoreService
 
 logger = logging.getLogger(__name__)
 
 
 async def process_one_batch(
-    storage: StorageBackend, parser: DocumentParser, *, worker_id: str, batch_size: int
+    storage: StorageBackend,
+    parser: DocumentParser,
+    *,
+    worker_id: str,
+    batch_size: int,
+    embeddings: EmbeddingProvider | None = None,
+    vector_store: VectorStoreService | None = None,
 ) -> int:
     """Claim and process up to `batch_size` jobs. Returns how many were handled.
 
@@ -51,7 +63,14 @@ async def process_one_batch(
             try:
                 async with session.begin():
                     await session.merge(job)
-                    await process_job(session, storage, parser, job=job)
+                    await process_job(
+                        session,
+                        storage,
+                        parser,
+                        job=job,
+                        embeddings=embeddings,
+                        vector_store=vector_store,
+                    )
                     await jobs_service.finish(
                         session,
                         tenant_id=job.tenant_id,
@@ -90,6 +109,8 @@ async def run(stop: asyncio.Event | None = None) -> None:
 
     storage = get_storage_backend()
     parser = get_document_parser()
+    embeddings = get_embedding_provider()
+    vector_store = VectorStoreService()
 
     logger.info("worker started", extra={"worker_id": settings.worker_id})
     try:
@@ -99,6 +120,8 @@ async def run(stop: asyncio.Event | None = None) -> None:
                 parser,
                 worker_id=settings.worker_id,
                 batch_size=settings.worker_batch_size,
+                embeddings=embeddings,
+                vector_store=vector_store,
             )
             if handled == 0:
                 # Nothing due: wait, but wake immediately when asked to stop.

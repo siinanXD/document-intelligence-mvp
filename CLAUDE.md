@@ -43,6 +43,8 @@ pytest                                    # tests (database tests need PostgreSQ
 ## Tenant isolation
 
 * Every persisted row and every vector payload carries `tenant_id`.
+* Vector payloads carry identifiers only - never chunk text or filenames. Text
+  is read back from PostgreSQL, which stays the source of truth.
 * Every query filters by `tenant_id` - repository functions take it as an explicit
   argument, never read it from ambient state.
 * Cross-tenant access is a bug, not a permission decision. Each feature that reads
