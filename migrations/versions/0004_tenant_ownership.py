@@ -44,9 +44,7 @@ _CHILD_FOREIGN_KEYS = (
 
 
 def upgrade() -> None:
-    op.create_unique_constraint(
-        "uq_documents_tenant_id_id", "documents", ["tenant_id", "id"]
-    )
+    op.create_unique_constraint("uq_documents_tenant_id_id", "documents", ["tenant_id", "id"])
 
     for table, old_name, new_name, document_column in _CHILD_FOREIGN_KEYS:
         op.drop_constraint(old_name, table, type_="foreignkey")
