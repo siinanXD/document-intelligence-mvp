@@ -15,6 +15,7 @@ app/
   main.py          FastAPI application factory
   api/             HTTP routes only - thin, no business logic
   core/            settings, database engine, Qdrant client
+  models.py        ORM models; every tenant-owned row carries tenant_id
   providers/       external systems behind interfaces (embeddings, LLM, storage)
   services/        business logic (ingestion, retrieval, profiling)
 migrations/        Alembic environment and revisions
@@ -35,7 +36,7 @@ alembic upgrade head                      # apply migrations
 uvicorn app.main:app --reload             # run the API on :8000
 ruff check .                              # lint
 ruff format .                             # format
-pytest                                    # tests
+pytest                                    # tests (database tests need PostgreSQL)
 ```
 
 ## Tenant isolation
@@ -47,6 +48,8 @@ pytest                                    # tests
   data ships with a negative test proving another tenant cannot see it.
 * Deletion is tenant-scoped and covers object storage, Postgres rows and vector
   points together.
+* Uniqueness is scoped to a tenant, never global: two tenants uploading the same
+  bytes are not duplicates of each other.
 
 ## Provider abstraction
 

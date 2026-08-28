@@ -8,17 +8,26 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
-from app.core.db import Base
-from app.core.settings import get_settings
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlalchemy.pool import NullPool
+
+# Imported for its side effect: registering every model on Base.metadata.
+# Autogenerate only sees tables that are imported by the time Alembic runs.
+import app.models  # noqa: F401  (must stay after the Base import)
+from app.core.db import Base
+from app.core.settings import get_settings
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+# A programmatic caller - the test suite, or a one-off run against a
+# specific database - may set the URL on the config before invoking Alembic;
+# honour that. Otherwise it comes from settings. Either way it never comes
+# from alembic.ini, which holds no URL at all.
+if not config.get_main_option("sqlalchemy.url", None):
+    config.set_main_option("sqlalchemy.url", get_settings().database_url)
 
 # Autogenerate only sees tables that are imported by the time Alembic runs.
 # Every new ORM model module must be imported here, or `alembic revision

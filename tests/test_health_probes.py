@@ -3,6 +3,7 @@
 import asyncio
 
 import pytest
+
 from app.services import health as health_service
 from app.services.vector_store import VectorStoreService
 

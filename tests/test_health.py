@@ -1,8 +1,9 @@
 import pytest
+from fastapi.testclient import TestClient
+
 from app import __version__
 from app.main import create_app
 from app.services.health import DependencyStatus
-from fastapi.testclient import TestClient
 
 
 def test_health_returns_ok(client):

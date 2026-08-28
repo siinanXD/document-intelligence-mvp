@@ -33,10 +33,13 @@ include = ["app*"]
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-src = ["app", "tests"]
+src = ["."]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "C4", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "tests"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["B008"]
@@ -45,3 +48,8 @@ select = ["E", "F", "I", "B", "UP", "C4", "SIM"]
 testpaths = ["tests"]
 addopts = "-q"
 asyncio_mode = "auto"
+# One event loop for the whole run: the session-scoped database engine and the
+# tests that use it must share a loop, or asyncpg connections created in one
+# are awaited in another.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
