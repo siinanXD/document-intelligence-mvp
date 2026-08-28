@@ -18,6 +18,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Docling drags in torch and friends - several gigabytes. The API does not need
+# it; only the worker does. Keeping it out of the default install means a
+# contributor working on routes or the schema does not pay for it.
+parsing = [
+    "docling>=2.20,<3",
+]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",

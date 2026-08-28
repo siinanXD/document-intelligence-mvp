@@ -14,6 +14,7 @@ from app.providers.openai_provider import (
     OpenAILLMProvider,
     build_openai_client,
 )
+from app.providers.parsing import DocumentParser
 from app.providers.s3_storage import S3StorageBackend, build_s3_client
 from app.providers.storage import StorageBackend
 
@@ -81,3 +82,20 @@ def get_storage_backend() -> StorageBackend:
         )
 
     raise ProviderConfigurationError(f"unsupported storage backend: {settings.storage_backend}")
+
+
+@lru_cache
+def get_document_parser() -> DocumentParser:
+    """Build the configured parser.
+
+    Docling is imported here rather than at module scope: it drags in a very
+    large dependency tree, and nothing else in the application needs it.
+    """
+    from app.providers.docling_parser import DoclingParser
+
+    settings = get_settings()
+    return DoclingParser(
+        artifacts_path=settings.docling_artifacts_path,
+        do_ocr=settings.docling_do_ocr,
+        do_table_structure=settings.docling_do_table_structure,
+    )
