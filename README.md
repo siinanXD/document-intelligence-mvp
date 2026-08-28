@@ -53,6 +53,21 @@ their volumes.
   unreachable. It reports up or down only; endpoints and credentials stay in
   the logs.
 
+### Tests
+
+```bash
+pytest                                          # unit tests; database tests skip
+                                                # if PostgreSQL is unreachable
+TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/document_intelligence_test \
+  REQUIRE_DB=1 pytest                           # how CI runs it: a missing
+                                                # database fails instead of skipping
+```
+
+Create the test database once with
+`createdb document_intelligence_test`, or let `docker compose up -d` provide
+PostgreSQL and create it there. The schema is built by running the real
+migrations, so every test run also exercises the migration path.
+
 ### Migrations
 
 ```bash
@@ -88,6 +103,7 @@ app/
   api/          HTTP routes
   core/         settings, database engine, Qdrant client
   providers/    embedding, LLM and storage interfaces plus implementations
+  models.py     ORM models: the durable source of truth
   services/     business logic; the only layer that touches Qdrant
 migrations/     Alembic environment and revisions
 tests/          pytest suite; every external call is mocked
