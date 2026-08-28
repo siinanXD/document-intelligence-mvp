@@ -14,9 +14,10 @@ search, and answered over with grounded citations.
 app/
   main.py          FastAPI application factory
   api/             HTTP routes only - thin, no business logic
-  core/            settings, cross-cutting infrastructure
+  core/            settings, database engine, Qdrant client
   providers/       external systems behind interfaces (embeddings, LLM, storage)
-  services/        business logic (ingestion, retrieval, profiling) - added per milestone
+  services/        business logic (ingestion, retrieval, profiling)
+migrations/        Alembic environment and revisions
 tests/             pytest suite; external calls are always mocked
 ```
 
@@ -29,6 +30,8 @@ storage or an AI provider directly.
 uv venv && source .venv/bin/activate      # or: python3.12 -m venv .venv
 uv pip install -e ".[dev]"                # or: pip install -e ".[dev]"
 
+docker compose up -d                      # PostgreSQL :5432, Qdrant :6333
+alembic upgrade head                      # apply migrations
 uvicorn app.main:app --reload             # run the API on :8000
 ruff check .                              # lint
 ruff format .                             # format
@@ -49,7 +52,9 @@ pytest                                    # tests
 
 * `EmbeddingProvider`, `LLMProvider` and the storage interface are the only places
   that may import a vendor SDK.
-* Provider choice comes from settings, never from a call site.
+* Provider choice comes from settings through `app/providers/registry.py`; a
+  call site asks for a capability and never names a vendor.
+* Implementations take an injected client so tests can supply a fake.
 * Embedding provider, model and version are persisted with indexed data so a
   provider change can be detected and reindexed rather than silently mixed.
 * Tests mock every external call. CI must never make a paid API call.
@@ -60,6 +65,7 @@ pytest                                    # tests
   a migration.
 * One logical change per revision, with a working `downgrade` where feasible.
 * `alembic upgrade head` on an empty database must reproduce the full schema.
+* The database URL comes from `app/core/settings.py`, never from `alembic.ini`.
 
 ## Logging and privacy
 
