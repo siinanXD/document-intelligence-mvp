@@ -239,25 +239,19 @@ async def test_a_queued_job_cannot_be_finished(db_session, tenant, make_document
     job = await jobs.enqueue(db_session, tenant_id=tenant.id, document_id=document.id)
 
     assert (
-        await jobs.finish(
-            db_session, tenant_id=tenant.id, job_id=job.id, worker_id="worker-1"
-        )
+        await jobs.finish(db_session, tenant_id=tenant.id, job_id=job.id, worker_id="worker-1")
         is None
     )
     assert job.status is JobStatus.queued
 
 
-async def test_a_different_worker_cannot_finish_or_fail_a_claim(
-    db_session, tenant, make_document
-):
+async def test_a_different_worker_cannot_finish_or_fail_a_claim(db_session, tenant, make_document):
     document = await make_document(tenant)
     job = await jobs.enqueue(db_session, tenant_id=tenant.id, document_id=document.id)
     await jobs.claim(db_session, worker_id="worker-1")
 
     assert (
-        await jobs.finish(
-            db_session, tenant_id=tenant.id, job_id=job.id, worker_id="worker-2"
-        )
+        await jobs.finish(db_session, tenant_id=tenant.id, job_id=job.id, worker_id="worker-2")
         is None
     )
     assert (
