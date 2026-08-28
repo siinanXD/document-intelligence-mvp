@@ -33,7 +33,9 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://localhost:6333"
     qdrant_api_key: str | None = None
     qdrant_collection: str = "document_chunks"
-    qdrant_timeout_seconds: float = 5.0
+    # Whole seconds: the Qdrant client takes an int, and a truncated
+    # sub-second value would read as "no timeout".
+    qdrant_timeout_seconds: int = Field(default=5, ge=1)
 
     # --- AI providers ---
     embedding_provider: Literal["openai"] = "openai"

@@ -20,7 +20,9 @@ if config.config_file_name is not None:
 
 config.set_main_option("sqlalchemy.url", get_settings().database_url)
 
-# Importing the models module registers every table on Base.metadata.
+# Autogenerate only sees tables that are imported by the time Alembic runs.
+# Every new ORM model module must be imported here, or `alembic revision
+# --autogenerate` will silently emit an empty migration.
 target_metadata = Base.metadata
 
 

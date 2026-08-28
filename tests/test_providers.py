@@ -7,7 +7,11 @@ from dataclasses import dataclass
 
 import pytest
 from app.providers.base import EmbeddingProvider, LLMProvider
-from app.providers.openai_provider import OpenAIEmbeddingProvider, OpenAILLMProvider
+from app.providers.openai_provider import (
+    OpenAIEmbeddingProvider,
+    OpenAILLMProvider,
+    ProviderResponseError,
+)
 from app.providers.registry import (
     ProviderConfigurationError,
     get_embedding_provider,
@@ -172,3 +176,12 @@ def test_registry_builds_configured_providers_without_calling_out(monkeypatch):
     assert embeddings.model == "text-embedding-3-large"
     assert embeddings.dimensions == 3072
     assert llm.model == "gpt-4o"
+
+
+async def test_structured_output_raises_instead_of_returning_none():
+    """A refusal arrives as parsed=None; returning it defers the failure."""
+    completions = _FakeCompletions(parsed=None)
+    provider = OpenAILLMProvider(client=_FakeChatClient(completions), model="gpt-4o")
+
+    with pytest.raises(ProviderResponseError, match="no parsable _Profile"):
+        await provider.complete_structured("sys", "user", _Profile)

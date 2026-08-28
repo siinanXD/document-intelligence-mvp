@@ -6,6 +6,7 @@ this exposes only what the readiness check needs.
 """
 
 import logging
+from typing import Any
 
 from app.core.qdrant import get_qdrant_client
 from app.core.settings import get_settings
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class VectorStoreService:
-    def __init__(self, client=None) -> None:
+    def __init__(self, client: Any | None = None) -> None:
         self._client = client or get_qdrant_client()
 
     async def ping(self) -> bool:

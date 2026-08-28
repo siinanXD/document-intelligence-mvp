@@ -10,6 +10,11 @@ from openai import AsyncOpenAI
 
 from app.providers.base import EmbeddingProvider, LLMProvider, SchemaT
 
+
+class ProviderResponseError(RuntimeError):
+    """Raised when a provider returns a response the caller cannot use."""
+
+
 # Dimensionality of the models we support. Unknown models must be declared
 # explicitly rather than guessed, so an unsupported one fails loudly.
 _MODEL_DIMENSIONS: dict[str, int] = {
@@ -89,7 +94,12 @@ class OpenAILLMProvider(LLMProvider):
             ],
             response_format=schema,
         )
-        return response.choices[0].message.parsed
+        parsed = response.choices[0].message.parsed
+        if parsed is None:
+            # A refusal or an unparseable response arrives as parsed=None.
+            # Returning it would defer the failure to a far-away call site.
+            raise ProviderResponseError(f"{self._model} returned no parsable {schema.__name__}")
+        return parsed
 
 
 def build_openai_client(api_key: str) -> AsyncOpenAI:

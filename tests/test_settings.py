@@ -35,3 +35,14 @@ def test_credentials_default_to_unset():
 
     assert settings.openai_api_key is None
     assert settings.qdrant_api_key is None
+
+
+def test_qdrant_timeout_is_whole_seconds_and_never_zero():
+    """int(0.5) would be 0, which the Qdrant client reads as no timeout."""
+    import pytest
+    from app.core.settings import Settings
+    from pydantic import ValidationError
+
+    assert isinstance(get_settings().qdrant_timeout_seconds, int)
+    with pytest.raises(ValidationError):
+        Settings(qdrant_timeout_seconds=0)
