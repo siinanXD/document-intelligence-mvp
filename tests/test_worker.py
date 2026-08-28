@@ -192,8 +192,18 @@ async def test_a_processed_document_is_not_claimed_again(sessions, storage, work
 
 
 async def test_the_loop_stops_when_asked(sessions, storage, monkeypatch):
+    from qdrant_client import AsyncQdrantClient
+
+    from app.services.vector_store import VectorStoreService
+    from tests.test_indexing import _FakeEmbeddings
+
     monkeypatch.setattr("app.worker.get_storage_backend", lambda: storage)
     monkeypatch.setattr("app.worker.get_document_parser", _FakeParser)
+    monkeypatch.setattr("app.worker.get_embedding_provider", _FakeEmbeddings)
+    monkeypatch.setattr(
+        "app.worker.VectorStoreService",
+        lambda: VectorStoreService(client=AsyncQdrantClient(":memory:"), collection="loop"),
+    )
 
     async def _noop():
         return None
@@ -207,3 +217,21 @@ async def test_the_loop_stops_when_asked(sessions, storage, monkeypatch):
     stop.set()
 
     await asyncio.wait_for(task, timeout=5)
+
+
+async def test_the_worker_refuses_to_start_without_an_embedding_provider(
+    sessions, storage, monkeypatch
+):
+    """Parsing without indexing would mark documents ready that answer nothing.
+
+    Failing at startup is the loud version of that, and the only one an
+    operator notices.
+    """
+    from app.providers.registry import ProviderConfigurationError
+
+    monkeypatch.setattr("app.worker.get_storage_backend", lambda: storage)
+    monkeypatch.setattr("app.worker.get_document_parser", _FakeParser)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    with pytest.raises(ProviderConfigurationError):
+        await run(asyncio.Event())
