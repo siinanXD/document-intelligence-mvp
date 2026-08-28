@@ -4,6 +4,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Document, DocumentStatus
@@ -39,6 +40,17 @@ async def ingest_upload(
     in storage rather than a document row pointing at nothing. Garbage in a
     bucket is recoverable; a dangling reference is not.
     """
+    # Serialize identical uploads for one tenant inside the database transaction.
+    # A check followed by an insert is otherwise racy: two requests can both
+    # observe "missing", and the loser only discovers the unique constraint at
+    # flush time. The transaction lock lets the loser observe the winner's
+    # committed row and return the normal duplicate response.
+    duplicate_lock_key = f"upload:{tenant_id}:{upload.file_hash}"
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+        {"key": duplicate_lock_key},
+    )
+
     existing = await documents_service.find_by_file_hash(
         session, tenant_id=tenant_id, file_hash=upload.file_hash
     )
