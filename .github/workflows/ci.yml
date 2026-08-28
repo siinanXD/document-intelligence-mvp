@@ -15,6 +15,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: No secrets in tracked files
+        run: |
+          # A committed .env is the most likely way a credential reaches the
+          # repository. Fail loudly rather than relying on .gitignore holding.
+          if git ls-files --error-unmatch .env > /dev/null 2>&1; then
+            echo "::error::.env is tracked by git - it must never be committed"
+            exit 1
+          fi
+          if git ls-files -z | xargs -0 grep -lE \
+              '(sk-[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)' ; then
+            echo "::error::a credential-shaped literal is present in a tracked file"
+            exit 1
+          fi
+          echo "no tracked secrets found"
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
