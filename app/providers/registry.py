@@ -33,6 +33,7 @@ def get_embedding_provider() -> EmbeddingProvider:
             client=build_openai_client(settings.openai_api_key),
             model=settings.embedding_model,
             version=settings.embedding_version,
+            batch_size=settings.embedding_batch_size,
         )
     raise ProviderConfigurationError(
         f"unsupported embedding provider: {settings.embedding_provider}"

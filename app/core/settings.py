@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     embedding_provider: Literal["openai"] = "openai"
     embedding_model: str = "text-embedding-3-small"
     embedding_version: str = "v1"
+    embedding_batch_size: int = Field(default=128, ge=1, le=2048)
     llm_provider: Literal["openai"] = "openai"
     llm_model: str = "gpt-4o-mini"
     openai_api_key: str | None = None
@@ -69,6 +70,10 @@ class Settings(BaseSettings):
     worker_batch_size: int = Field(default=1, ge=1, le=32)
     worker_idle_sleep_seconds: float = Field(default=2.0, gt=0)
     worker_retry_delay_seconds: int = Field(default=60, ge=1)
+
+    # --- Search ---
+    search_default_limit: int = Field(default=10, ge=1)
+    search_max_limit: int = Field(default=50, ge=1)
 
     # --- Uploads ---
     # 50 MiB. Enforced while streaming, so an oversized body is refused before
