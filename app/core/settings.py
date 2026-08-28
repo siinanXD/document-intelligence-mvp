@@ -48,6 +48,16 @@ class Settings(BaseSettings):
     # --- Object storage ---
     storage_backend: Literal["local", "s3"] = "local"
     storage_local_path: str = "./storage"
+    s3_endpoint_url: str | None = None
+    s3_bucket: str | None = None
+    s3_region: str | None = None
+    s3_access_key_id: str | None = None
+    s3_secret_access_key: str | None = None
+
+    # --- Uploads ---
+    # 50 MiB. Enforced while streaming, so an oversized body is refused before
+    # it is buffered rather than after.
+    max_upload_bytes: int = Field(default=50 * 1024 * 1024, gt=0)
 
     # --- Health ---
     health_check_timeout_seconds: float = Field(default=2.0, gt=0)
