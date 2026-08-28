@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app import __version__
+from app.api.ask import router as ask_router
 from app.api.documents import router as documents_router
 from app.api.health import router as health_router
 from app.api.search import router as search_router
@@ -30,6 +31,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(documents_router)
     app.include_router(search_router)
+    app.include_router(ask_router)
     return app
 
 

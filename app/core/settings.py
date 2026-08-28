@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     # --- Search ---
     search_default_limit: int = Field(default=10, ge=1)
     search_max_limit: int = Field(default=50, ge=1)
+    # Fewer passages than search returns: every one of them costs prompt
+    # tokens, and a long tail of weak matches makes grounding worse, not better.
+    ask_default_limit: int = Field(default=6, ge=1)
+    ask_max_limit: int = Field(default=20, ge=1)
 
     # --- Uploads ---
     # 50 MiB. Enforced while streaming, so an oversized body is refused before
