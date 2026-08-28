@@ -97,7 +97,9 @@ async def test_finish_clears_the_claim(db_session, tenant, make_document):
     job = await jobs.enqueue(db_session, tenant_id=tenant.id, document_id=document.id)
     await jobs.claim(db_session, worker_id="worker-1")
 
-    finished = await jobs.finish(db_session, tenant_id=tenant.id, job_id=job.id)
+    finished = await jobs.finish(
+        db_session, tenant_id=tenant.id, job_id=job.id, worker_id="worker-1"
+    )
 
     assert finished.status is JobStatus.finished
     assert finished.claimed_by is None
@@ -114,6 +116,7 @@ async def test_a_failure_with_attempts_left_is_requeued_for_later(
         db_session,
         tenant_id=tenant.id,
         job_id=job.id,
+        worker_id="worker-1",
         error="parser returned no pages",
         retry_delay=timedelta(minutes=5),
     )
@@ -132,7 +135,11 @@ async def test_a_failure_with_no_attempts_left_stays_failed(db_session, tenant, 
     await jobs.claim(db_session, worker_id="worker-1")
 
     failed = await jobs.fail(
-        db_session, tenant_id=tenant.id, job_id=job.id, error="unsupported format"
+        db_session,
+        tenant_id=tenant.id,
+        job_id=job.id,
+        worker_id="worker-1",
+        error="unsupported format"
     )
 
     assert failed.status is JobStatus.failed
@@ -144,7 +151,12 @@ async def test_a_long_error_is_truncated_rather_than_rejected(db_session, tenant
     job = await jobs.enqueue(db_session, tenant_id=tenant.id, document_id=document.id)
     await jobs.claim(db_session, worker_id="worker-1")
 
-    failed = await jobs.fail(db_session, tenant_id=tenant.id, job_id=job.id, error="x" * 5000)
+    failed = await jobs.fail(
+        db_session,
+        tenant_id=tenant.id,
+        job_id=job.id,
+        worker_id="worker-1",
+        error="x" * 5000)
 
     assert len(failed.last_error) == 2000
 
@@ -219,3 +231,43 @@ async def test_claiming_keeps_the_session_in_step_with_the_database(
     # Same object, read through the session that issued the bulk update.
     assert job.attempts == 1
     assert job.status is JobStatus.processing
+
+
+async def test_a_queued_job_cannot_be_finished(db_session, tenant, make_document):
+    document = await make_document(tenant)
+    job = await jobs.enqueue(db_session, tenant_id=tenant.id, document_id=document.id)
+
+    assert (
+        await jobs.finish(
+            db_session, tenant_id=tenant.id, job_id=job.id, worker_id="worker-1"
+        )
+        is None
+    )
+    assert job.status is JobStatus.queued
+
+
+async def test_a_different_worker_cannot_finish_or_fail_a_claim(
+    db_session, tenant, make_document
+):
+    document = await make_document(tenant)
+    job = await jobs.enqueue(db_session, tenant_id=tenant.id, document_id=document.id)
+    await jobs.claim(db_session, worker_id="worker-1")
+
+    assert (
+        await jobs.finish(
+            db_session, tenant_id=tenant.id, job_id=job.id, worker_id="worker-2"
+        )
+        is None
+    )
+    assert (
+        await jobs.fail(
+            db_session,
+            tenant_id=tenant.id,
+            job_id=job.id,
+            worker_id="worker-2",
+            error="not this worker's claim",
+        )
+        is None
+    )
+    assert job.status is JobStatus.processing
+    assert job.claimed_by == "worker-1"
