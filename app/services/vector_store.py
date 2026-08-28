@@ -179,6 +179,12 @@ class VectorStoreService:
                 with_payload=True,
             )
         except Exception as exc:
+            # A tenant that has indexed nothing yet is searching a collection
+            # that does not exist. That is an empty result, not an outage: the
+            # alternative is a new tenant's first question answering 503.
+            # Checked rather than assumed, so a real failure still surfaces.
+            if not await self._collection_exists():
+                return []
             raise VectorStoreError(f"search failed ({type(exc).__name__})") from None
 
         results: list[tuple[UUID, float]] = []
@@ -187,6 +193,14 @@ class VectorStoreService:
             chunk_id = payload.get("chunk_id") or point.id
             results.append((UUID(str(chunk_id)), float(point.score)))
         return results
+
+    async def _collection_exists(self) -> bool:
+        try:
+            existing = await self._client.get_collections()
+        except Exception:
+            # The store itself is unreachable, which is a real failure.
+            return False
+        return self._collection in {c.name for c in existing.collections}
 
     @staticmethod
     def _filter(*, tenant_id: UUID, document_ids: list[UUID] | None = None) -> models.Filter:

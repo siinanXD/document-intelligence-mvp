@@ -177,3 +177,26 @@ async def test_the_payload_carries_identifiers_and_no_text(store):
 
     assert set(payload) == {"tenant_id", "document_id", "chunk_id", "source_id"}
     assert payload["source_id"] == "doc:00001"
+
+
+async def test_searching_before_anything_is_indexed_is_empty_not_an_error():
+    """A tenant's first question must not answer 503 because nothing exists yet."""
+    client = AsyncQdrantClient(":memory:")
+    store = VectorStoreService(client=client, collection="never_created")
+
+    assert await store.search(tenant_id=uuid.uuid4(), vector=[1.0, 0, 0, 0], limit=5) == []
+
+    await client.close()
+
+
+async def test_a_real_failure_still_surfaces(store, monkeypatch):
+    """Swallowing the missing-collection case must not swallow an outage."""
+    from app.services.vector_store import VectorStoreError
+
+    async def _explode(**kwargs):
+        raise ConnectionError("qdrant is down")
+
+    monkeypatch.setattr(store._client, "query_points", _explode)
+
+    with pytest.raises(VectorStoreError):
+        await store.search(tenant_id=uuid.uuid4(), vector=[1.0, 0, 0, 0], limit=5)
