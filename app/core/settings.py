@@ -54,6 +54,22 @@ class Settings(BaseSettings):
     s3_access_key_id: str | None = None
     s3_secret_access_key: str | None = None
 
+    # --- Parsing ---
+    # Pre-fetched Docling model weights. Left unset, Docling downloads them on
+    # first use - hundreds of megabytes, inside whichever request happens to be
+    # the first PDF. Deployments bake the models in and point this at them.
+    docling_artifacts_path: str | None = None
+    # OCR is the expensive path and pulls further models; scanned documents are
+    # out of scope for the MVP.
+    docling_do_ocr: bool = False
+    docling_do_table_structure: bool = True
+
+    # --- Worker ---
+    worker_id: str = "worker"
+    worker_batch_size: int = Field(default=1, ge=1, le=32)
+    worker_idle_sleep_seconds: float = Field(default=2.0, gt=0)
+    worker_retry_delay_seconds: int = Field(default=60, ge=1)
+
     # --- Uploads ---
     # 50 MiB. Enforced while streaming, so an oversized body is refused before
     # it is buffered rather than after.

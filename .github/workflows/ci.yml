@@ -69,4 +69,27 @@ jobs:
         run: ruff format --check .
 
       - name: Tests
-        run: pytest
+        run: pytest --ignore=tests/test_docling_parser.py
+
+  # Docling pulls torch and friends - several gigabytes and minutes of install
+  # time - so it does not belong in the loop every push waits on. This job
+  # exercises the real parser separately, and does not gate the fast one.
+  parsing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install project with the parsing extra
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,parsing]"
+
+      - name: Parser tests
+        # The PDF test needs Docling's downloaded layout model. It is opt-in
+        # via --run-docling-models; see the module docstring for why.
+        run: pytest tests/test_docling_parser.py

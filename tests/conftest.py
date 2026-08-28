@@ -80,10 +80,25 @@ async def db_engine():
 
 
 @pytest_asyncio.fixture
-async def db_session(db_engine):
-    """A session inside a transaction that is always rolled back."""
+async def db_connection(db_engine):
+    """A connection holding one transaction, rolled back after the test.
+
+    Exposed separately so a test can build further sessions on it - the worker
+    opens its own, and they have to land in the same rolled-back transaction.
+    """
     connection = await db_engine.connect()
     transaction = await connection.begin()
+    try:
+        yield connection
+    finally:
+        await transaction.rollback()
+        await connection.close()
+
+
+@pytest_asyncio.fixture
+async def db_session(db_connection):
+    """A session inside the test transaction."""
+    connection = db_connection
     # join_transaction_mode="create_savepoint" keeps the session's own
     # rollbacks - including the implicit one after an IntegrityError - inside a
     # SAVEPOINT, so they cannot unwind the outer transaction this fixture owns.
@@ -96,8 +111,6 @@ async def db_session(db_engine):
         yield session
     finally:
         await session.close()
-        await transaction.rollback()
-        await connection.close()
 
 
 async def _make_tenant(session, prefix: str) -> Tenant:
@@ -136,3 +149,16 @@ def make_document(db_session):
         return document
 
     return _make
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--run-docling-models",
+        action="store_true",
+        default=False,
+        help=(
+            "Run the tests that need Docling's downloaded models. They are off by "
+            "default because the models are hundreds of megabytes and some "
+            "environments cannot reach the host that serves them."
+        ),
+    )

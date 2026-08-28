@@ -103,6 +103,10 @@ class Document(Base):
     file_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     # SHA-256 of the deterministically normalized text, known after parsing.
     content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Where the parser's structured output is stored, so a later reindex can
+    # re-chunk without parsing the original again.
+    normalized_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    parser_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     status: Mapped[DocumentStatus] = mapped_column(
         Enum(DocumentStatus, name="document_status", native_enum=True),
