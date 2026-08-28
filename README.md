@@ -44,6 +44,27 @@ Interactive docs: http://127.0.0.1:8000/docs
 `docker compose down` stops the services; `docker compose down -v` also drops
 their volumes.
 
+### Uploading a document
+
+```bash
+curl -X POST http://127.0.0.1:8000/documents \
+  -H "X-Tenant-Id: <tenant uuid>" \
+  -F "file=@contract.pdf;type=application/pdf"
+# 201 {"document": {..., "status": "queued"}, "duplicate": false}
+
+# the same bytes again: nothing is created, nothing is re-queued
+# 200 {"document": {...}, "duplicate": true}
+
+curl http://127.0.0.1:8000/documents -H "X-Tenant-Id: <tenant uuid>"
+curl http://127.0.0.1:8000/documents/<id> -H "X-Tenant-Id: <tenant uuid>"
+```
+
+Every request carries `X-Tenant-Id`. That header is identification, not
+authentication - nothing issues credentials yet, and real authentication is
+part of the hardening work. Supported uploads are PDF, DOCX, PPTX, XLSX, HTML,
+Markdown and plain text; the extension, the declared content type and the
+leading bytes all have to agree.
+
 ### Health endpoints
 
 - `GET /health` — liveness. Answers `200` as long as the process serves

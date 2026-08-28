@@ -173,7 +173,7 @@ async def test_two_workers_racing_never_receive_the_same_job(db_engine, db_sessi
                 mime_type="application/pdf",
                 storage_key=f"{tenant.id}/{index}",
                 file_hash=uuid.uuid4().hex + uuid.uuid4().hex,
-                status=DocumentStatus.pending,
+                status=DocumentStatus.queued,
             )
             setup.add(document)
             await setup.flush()

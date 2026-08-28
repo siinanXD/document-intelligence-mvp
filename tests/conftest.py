@@ -128,7 +128,7 @@ def make_document(db_session):
             mime_type=overrides.pop("mime_type", "application/pdf"),
             storage_key=overrides.pop("storage_key", f"{tenant.id}/{uuid.uuid4()}"),
             file_hash=file_hash or uuid.uuid4().hex + uuid.uuid4().hex,
-            status=overrides.pop("status", DocumentStatus.pending),
+            status=overrides.pop("status", DocumentStatus.queued),
             **overrides,
         )
         db_session.add(document)
