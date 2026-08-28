@@ -28,3 +28,17 @@ def test_alembic_ini_holds_no_database_url():
         content = handle.read()
 
     assert "sqlalchemy.url" not in content
+
+
+def test_every_revision_id_fits_alembics_version_column():
+    """Alembic stores the revision in a VARCHAR(32).
+
+    A longer id runs its DDL and then fails to record itself, leaving the
+    database changed but the version table pointing at the previous revision -
+    a state every later upgrade then trips over.
+    """
+    for revision in _script_directory().walk_revisions():
+        assert len(revision.revision) <= 32, (
+            f"revision id {revision.revision!r} is {len(revision.revision)} characters; "
+            "alembic_version.version_num holds 32"
+        )
