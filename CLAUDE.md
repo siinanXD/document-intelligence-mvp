@@ -75,6 +75,7 @@ pytest                                    # tests (database tests need PostgreSQ
 * Log identifiers (`tenant_id`, `document_id`, `job_id`), never document content,
   extracted entities, filenames of customer data, prompts or completions.
 * Never log credentials or full request bodies.
+* Uploaded bytes and filenames of customer data never reach a log line.
 * Errors are logged with context, not with the payload that caused them.
 
 ## Secrets
