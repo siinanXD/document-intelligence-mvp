@@ -205,3 +205,63 @@ async def test_default_status_is_queued(db_session, tenant, make_document):
     document = await make_document(tenant)
 
     assert document.status is DocumentStatus.queued
+
+
+async def test_chunk_tenant_must_match_its_document(
+    db_session, tenant, other_tenant, make_document
+):
+    document = await make_document(tenant)
+    db_session.add(
+        Chunk(
+            tenant_id=other_tenant.id,
+            document_id=document.id,
+            ordinal=0,
+            text="must not cross tenants",
+            source_id=f"{document.id}:0",
+        )
+    )
+
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
+
+
+async def test_profile_tenant_must_match_its_document(
+    db_session, tenant, other_tenant, make_document
+):
+    from app.models import DocumentProfile
+
+    document = await make_document(tenant)
+    db_session.add(DocumentProfile(tenant_id=other_tenant.id, document_id=document.id))
+
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
+
+
+async def test_job_tenant_must_match_its_document(
+    db_session, tenant, other_tenant, make_document
+):
+    from app.models import IngestionJob
+
+    document = await make_document(tenant)
+    db_session.add(IngestionJob(tenant_id=other_tenant.id, document_id=document.id))
+
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
+
+
+async def test_both_relation_documents_must_belong_to_the_relation_tenant(
+    db_session, tenant, other_tenant, make_document
+):
+    source = await make_document(tenant)
+    target = await make_document(other_tenant)
+    db_session.add(
+        DocumentRelation(
+            tenant_id=tenant.id,
+            source_document_id=source.id,
+            target_document_id=target.id,
+            relation_type=RelationType.related,
+        )
+    )
+
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
