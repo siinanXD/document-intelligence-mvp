@@ -65,6 +65,26 @@ part of the hardening work. Supported uploads are PDF, DOCX, PPTX, XLSX, HTML,
 Markdown and plain text; the extension, the declared content type and the
 leading bytes all have to agree.
 
+### Running the worker
+
+```bash
+pip install -e ".[dev,parsing]"     # the parsing extra brings Docling
+python -m app.worker
+```
+
+The worker claims queued ingestion jobs from PostgreSQL, parses each document
+with Docling, normalises the text, computes `content_hash`, stores the parsed
+representation for later reindexing, and writes chunks with their provenance.
+It runs from the same project as the API - one codebase, two entry points.
+
+**Docling needs its models.** The PDF pipeline downloads a layout model on
+first use, and the `HybridChunker` downloads a tokenizer. Left to itself that
+happens inside whichever request is the first PDF, costs hundreds of megabytes,
+and repeats on every fresh container. A deployment should pre-fetch them at
+image build time and point `DOCLING_ARTIFACTS_PATH` at the result. OCR is off
+by default (`DOCLING_DO_OCR`): it is the expensive path, pulls further models,
+and scanned documents are out of scope for the MVP.
+
 ### Health endpoints
 
 - `GET /health` — liveness. Answers `200` as long as the process serves
@@ -77,8 +97,11 @@ leading bytes all have to agree.
 ### Tests
 
 ```bash
-pytest                                          # unit tests; database tests skip
-                                                # if PostgreSQL is unreachable
+pytest --ignore=tests/test_docling_parser.py    # the fast suite
+pytest tests/test_docling_parser.py             # the real parser; needs the
+                                                # `parsing` extra
+pytest                                          # database tests skip if
+                                                # PostgreSQL is unreachable
 TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/document_intelligence_test \
   REQUIRE_DB=1 pytest                           # how CI runs it: a missing
                                                 # database fails instead of skipping
@@ -126,6 +149,7 @@ app/
   providers/    embedding, LLM and storage interfaces plus implementations
   models.py     ORM models: the durable source of truth
   services/     business logic; the only layer that touches Qdrant
+  worker.py     the ingestion worker: python -m app.worker
 migrations/     Alembic environment and revisions
 tests/          pytest suite; every external call is mocked
 docs/           workflow and design notes

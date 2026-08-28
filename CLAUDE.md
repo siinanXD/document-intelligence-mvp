@@ -18,6 +18,7 @@ app/
   models.py        ORM models; every tenant-owned row carries tenant_id
   providers/       external systems behind interfaces (embeddings, LLM, storage)
   services/        business logic (ingestion, retrieval, profiling)
+  worker.py        ingestion worker; same project as the API
 migrations/        Alembic environment and revisions
 tests/             pytest suite; external calls are always mocked
 ```
@@ -77,6 +78,8 @@ pytest                                    # tests (database tests need PostgreSQ
 * Never log credentials or full request bodies.
 * Uploaded bytes and filenames of customer data never reach a log line.
 * Errors are logged with context, not with the payload that caused them.
+* A parser's own exception may quote the document it failed on. Convert it to a
+  message carrying the type only, and never chain the original.
 
 ## Secrets
 
