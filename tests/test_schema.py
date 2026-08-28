@@ -201,7 +201,7 @@ async def test_document_status_rejects_an_unknown_value(db_session, tenant, make
         )
 
 
-async def test_default_status_is_pending(db_session, tenant, make_document):
+async def test_default_status_is_queued(db_session, tenant, make_document):
     document = await make_document(tenant)
 
-    assert document.status is DocumentStatus.pending
+    assert document.status is DocumentStatus.queued

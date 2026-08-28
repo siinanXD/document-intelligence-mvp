@@ -35,7 +35,7 @@ from app.core.db import Base
 class DocumentStatus(enum.StrEnum):
     """Lifecycle of a document from upload to searchable."""
 
-    pending = "pending"
+    queued = "queued"
     processing = "processing"
     ready = "ready"
     failed = "failed"
@@ -106,8 +106,8 @@ class Document(Base):
     status: Mapped[DocumentStatus] = mapped_column(
         Enum(DocumentStatus, name="document_status", native_enum=True),
         nullable=False,
-        default=DocumentStatus.pending,
-        server_default=DocumentStatus.pending.value,
+        default=DocumentStatus.queued,
+        server_default=DocumentStatus.queued.value,
     )
 
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
