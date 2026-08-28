@@ -11,8 +11,8 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0",
     "alembic>=1.13",
     "asyncpg>=0.29",
-    "qdrant-client>=1.11",
-    "openai>=1.40",
+    "qdrant-client>=1.12,<1.14",
+    "openai>=1.99,<4",
 ]
 
 [project.optional-dependencies]
