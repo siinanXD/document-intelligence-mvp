@@ -40,8 +40,9 @@ def test_credentials_default_to_unset():
 def test_qdrant_timeout_is_whole_seconds_and_never_zero():
     """int(0.5) would be 0, which the Qdrant client reads as no timeout."""
     import pytest
-    from app.core.settings import Settings
     from pydantic import ValidationError
+
+    from app.core.settings import Settings
 
     assert isinstance(get_settings().qdrant_timeout_seconds, int)
     with pytest.raises(ValidationError):

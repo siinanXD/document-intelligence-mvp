@@ -6,6 +6,8 @@ Every external call is faked; no test may reach the network.
 from dataclasses import dataclass
 
 import pytest
+from pydantic import BaseModel
+
 from app.providers.base import EmbeddingProvider, LLMProvider
 from app.providers.openai_provider import (
     OpenAIEmbeddingProvider,
@@ -18,7 +20,6 @@ from app.providers.registry import (
     get_llm_provider,
 )
 from app.providers.storage import StorageBackend
-from pydantic import BaseModel
 
 
 @dataclass
