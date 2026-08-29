@@ -189,14 +189,35 @@ async def test_searching_before_anything_is_indexed_is_empty_not_an_error():
     await client.close()
 
 
-async def test_a_real_failure_still_surfaces(store, monkeypatch):
-    """Swallowing the missing-collection case must not swallow an outage."""
+async def test_a_failing_query_against_a_live_store_surfaces(store, monkeypatch):
+    """Swallowing the missing-collection case must not swallow a query failure."""
     from app.services.vector_store import VectorStoreError
 
     async def _explode(**kwargs):
-        raise ConnectionError("qdrant is down")
+        raise ConnectionError("qdrant rejected the query")
 
     monkeypatch.setattr(store._client, "query_points", _explode)
+
+    with pytest.raises(VectorStoreError):
+        await store.search(tenant_id=uuid.uuid4(), vector=[1.0, 0, 0, 0], limit=5)
+
+
+async def test_a_total_outage_surfaces_rather_than_answering_empty(store, monkeypatch):
+    """The case the first version of this code got wrong.
+
+    When the store is wholly unreachable both the query and the
+    collection-existence probe fail. Reading that as "the collection is not
+    there" returns no results, and a caller told "no results" during an outage
+    reports it as a wrong answer - worse than an error, because it looks like
+    one. The probe must distinguish "it is not there" from "I could not ask".
+    """
+    from app.services.vector_store import VectorStoreError
+
+    async def _down(*args, **kwargs):
+        raise ConnectionError("qdrant is unreachable")
+
+    monkeypatch.setattr(store._client, "query_points", _down)
+    monkeypatch.setattr(store._client, "get_collections", _down)
 
     with pytest.raises(VectorStoreError):
         await store.search(tenant_id=uuid.uuid4(), vector=[1.0, 0, 0, 0], limit=5)
