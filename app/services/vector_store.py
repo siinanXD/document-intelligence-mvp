@@ -225,3 +225,103 @@ class VectorStoreService:
                 )
             )
         return models.Filter(must=conditions)
+
+
+class DocumentVectorStore:
+    """Document-level vectors, in a collection of their own.
+
+    Separate from the chunk collection because the two answer different
+    questions and have different lifetimes - a document keeps one vector, a
+    document's chunks are replaced wholesale on every reprocess. Sharing one
+    collection would mean every chunk search had to exclude document points,
+    which is a filter someone eventually forgets.
+
+    The same rules apply: identifiers only in the payload, and every query
+    filtered by tenant.
+    """
+
+    def __init__(self, client: Any | None = None, collection: str | None = None) -> None:
+        settings = get_settings()
+        self._client = client or get_qdrant_client()
+        self._collection = collection or settings.qdrant_documents_collection
+
+    @property
+    def collection(self) -> str:
+        return self._collection
+
+    async def ensure_collection(self, *, dimensions: int) -> bool:
+        service = VectorStoreService(client=self._client, collection=self._collection)
+        return await service.ensure_collection(dimensions=dimensions)
+
+    async def upsert(self, *, tenant_id: UUID, document_id: UUID, vector: list[float]) -> None:
+        """Write one document's vector, replacing whatever it had."""
+        try:
+            await self._client.upsert(
+                collection_name=self._collection,
+                points=[
+                    models.PointStruct(
+                        id=str(document_id),
+                        vector=vector,
+                        payload={
+                            "tenant_id": str(tenant_id),
+                            "document_id": str(document_id),
+                        },
+                    )
+                ],
+                wait=True,
+            )
+        except Exception as exc:
+            raise VectorStoreError(
+                f"could not index the document vector ({type(exc).__name__})"
+            ) from None
+
+    async def delete(self, *, tenant_id: UUID, document_id: UUID) -> None:
+        try:
+            await self._client.delete(
+                collection_name=self._collection,
+                points_selector=models.FilterSelector(
+                    filter=VectorStoreService._filter(
+                        tenant_id=tenant_id, document_ids=[document_id]
+                    )
+                ),
+                wait=True,
+            )
+        except Exception as exc:
+            raise VectorStoreError(
+                f"could not remove the document vector ({type(exc).__name__})"
+            ) from None
+
+    async def similar(
+        self, *, tenant_id: UUID, vector: list[float], limit: int, exclude: UUID | None = None
+    ) -> list[tuple[UUID, float]]:
+        """Return (document_id, score) for the nearest documents of one tenant.
+
+        `exclude` drops the document being compared, which is otherwise always
+        its own best match.
+        """
+        try:
+            response = await self._client.query_points(
+                collection_name=self._collection,
+                query=vector,
+                # One extra, because the document itself is very likely the
+                # first result and is then discarded.
+                limit=limit + 1,
+                query_filter=VectorStoreService._filter(tenant_id=tenant_id),
+                with_payload=True,
+            )
+        except Exception as exc:
+            service = VectorStoreService(client=self._client, collection=self._collection)
+            if await service._collection_is_absent():
+                return []
+            raise VectorStoreError(
+                f"document similarity search failed ({type(exc).__name__})"
+            ) from None
+
+        results: list[tuple[UUID, float]] = []
+        for point in response.points:
+            payload = point.payload or {}
+            document_id = UUID(str(payload.get("document_id") or point.id))
+            if exclude is not None and document_id == exclude:
+                continue
+            results.append((document_id, float(point.score)))
+        return results[:limit]
