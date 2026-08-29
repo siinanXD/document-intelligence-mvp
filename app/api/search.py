@@ -7,6 +7,7 @@ service does all three, so the tenant filter cannot be forgotten here.
 
 import logging
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
@@ -14,6 +15,7 @@ from pydantic import BaseModel, Field
 from app.api.dependencies import SessionDep, TenantDep
 from app.core.settings import get_settings
 from app.providers.registry import ProviderConfigurationError, get_embedding_provider
+from app.services import lexical
 from app.services.retrieval import SearchHit, search
 from app.services.vector_store import VectorStoreError, VectorStoreService
 
@@ -26,6 +28,9 @@ class SearchRequest(BaseModel):
     query: str = Field(min_length=1, max_length=4000)
     document_ids: list[uuid.UUID] | None = None
     limit: int | None = Field(default=None, ge=1)
+    # Semantic finds passages that mean the same thing; lexical finds passages
+    # that contain the literal text. An identifier belongs to the second.
+    mode: Literal["semantic", "lexical"] = "semantic"
 
 
 class SearchResult(BaseModel):
@@ -39,6 +44,21 @@ class SearchResult(BaseModel):
     page_number: int | None
     section_title: str | None
     source_metadata: dict
+
+    @classmethod
+    def of_lexical(cls, hit: lexical.LexicalHit) -> "SearchResult":
+        return cls(
+            chunk_id=hit.chunk_id,
+            document_id=hit.document_id,
+            filename=hit.document_filename,
+            source_id=hit.source_id,
+            text=hit.text,
+            score=hit.rank,
+            ordinal=hit.ordinal,
+            page_number=hit.page_number,
+            section_title=hit.section_title,
+            source_metadata=hit.source_metadata,
+        )
 
     @classmethod
     def of(cls, hit: SearchHit) -> "SearchResult":
@@ -73,6 +93,18 @@ async def search_documents(
 ) -> SearchResponse:
     settings = get_settings()
     limit = min(request.limit or settings.search_default_limit, settings.search_max_limit)
+
+    if request.mode == "lexical":
+        # No embedding provider needed, and no vector store: lexical search is
+        # answered entirely by PostgreSQL, so it keeps working when they do not.
+        hits = await lexical.search(
+            session,
+            tenant_id=tenant.id,
+            query=request.query,
+            limit=limit,
+            document_ids=request.document_ids,
+        )
+        return SearchResponse(results=[SearchResult.of_lexical(hit) for hit in hits])
 
     try:
         embeddings = get_embedding_provider()

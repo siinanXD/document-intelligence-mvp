@@ -194,6 +194,20 @@ class Chunk(Base):
         UniqueConstraint("document_id", "ordinal", name="uq_chunks_document_ordinal"),
         UniqueConstraint("tenant_id", "source_id", name="uq_chunks_tenant_source_id"),
         Index("ix_chunks_tenant_document", "tenant_id", "document_id"),
+        # Lexical search. `simple` does no stemming, so identifiers survive
+        # intact; the trigram index serves the substring path, which the
+        # full-text index cannot, because a fragment of a token is not a token.
+        Index(
+            "ix_chunks_text_search",
+            sql_text("to_tsvector('simple'::regconfig, text)"),
+            postgresql_using="gin",
+        ),
+        Index(
+            "ix_chunks_text_trigram",
+            "text",
+            postgresql_using="gin",
+            postgresql_ops={"text": "gin_trgm_ops"},
+        ),
         CheckConstraint("ordinal >= 0", name="ck_chunks_ordinal_non_negative"),
     )
 

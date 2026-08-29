@@ -83,6 +83,40 @@ Results carry the score from the index and the text and provenance from
 PostgreSQL. Qdrant holds identifiers only - no chunk text - so the collection
 can be rebuilt at any time and a breach of it yields ids rather than documents.
 
+### Asking a question
+
+```bash
+curl -X POST http://127.0.0.1:8000/ask \
+  -H "X-Tenant-Id: <tenant uuid>" -H "content-type: application/json" \
+  -d '{"question": "When is payment due?"}'
+```
+
+The answer comes back with the source ids it actually used, each resolvable:
+
+```bash
+curl http://127.0.0.1:8000/documents/<document id>/sources/<source id> \
+  -H "X-Tenant-Id: <tenant uuid>"
+```
+
+`has_sufficient_evidence: false` is a successful response, not an error - "the
+documents do not say" is a real answer, and the alternative is a confident
+guess. Source ids the model names but was never given are dropped, so every id
+in a response resolves. When two passages disagree, `conflicting` is true and
+both are returned rather than reconciled into one smooth answer.
+
+### Lexical search
+
+```bash
+curl -X POST http://127.0.0.1:8000/search \
+  -H "X-Tenant-Id: <tenant uuid>" -H "content-type: application/json" \
+  -d '{"query": "INV-2024-0042", "mode": "lexical"}'
+```
+
+Semantic search finds passages that *mean* the same thing; lexical search finds
+passages that *contain* the literal text - an invoice number, a clause
+reference, a remembered phrase. It is answered by PostgreSQL alone, so it keeps
+working when the embedding provider or the vector store does not.
+
 ### Running the worker
 
 ```bash

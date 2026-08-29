@@ -179,6 +179,16 @@ class VectorStoreService:
                 with_payload=True,
             )
         except Exception as exc:
+            # A tenant that has indexed nothing yet is searching a collection
+            # that does not exist. That is an empty result, not an outage - the
+            # alternative is a new tenant's first question answering 503.
+            #
+            # Only that one case. If the store cannot be reached at all, the
+            # probe fails too, and an outage must surface as an outage: a
+            # caller told "no results" during one would report it as a wrong
+            # answer, which is worse than an error because it looks like one.
+            if await self._collection_is_absent():
+                return []
             raise VectorStoreError(f"search failed ({type(exc).__name__})") from None
 
         results: list[tuple[UUID, float]] = []
@@ -187,6 +197,19 @@ class VectorStoreService:
             chunk_id = payload.get("chunk_id") or point.id
             results.append((UUID(str(chunk_id)), float(point.score)))
         return results
+
+    async def _collection_is_absent(self) -> bool:
+        """True only when the store answered and the collection is not there.
+
+        An unreachable store returns False, not True: "I could not ask" is not
+        the same as "it is not there", and conflating them turns an outage into
+        an empty result.
+        """
+        try:
+            existing = await self._client.get_collections()
+        except Exception:
+            return False
+        return self._collection not in {c.name for c in existing.collections}
 
     @staticmethod
     def _filter(*, tenant_id: UUID, document_ids: list[UUID] | None = None) -> models.Filter:

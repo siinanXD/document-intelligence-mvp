@@ -16,6 +16,7 @@ from app.api.dependencies import SessionDep, StorageDep, TenantDep
 from app.core.settings import get_settings
 from app.models import Document
 from app.services import documents as documents_service
+from app.services import lexical
 from app.services.ingestion import ingest_upload
 from app.services.uploads import EmptyFile, FileTooLarge, UnsupportedFileType, validate_upload
 
@@ -132,3 +133,47 @@ async def get_document(
         # confirm that the id exists.
         raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found")
     return DocumentResponse.of(document)
+
+
+class SourceResponse(BaseModel):
+    """A citation resolved back to the passage it points at."""
+
+    source_id: str
+    document_id: uuid.UUID
+    filename: str
+    ordinal: int
+    text: str
+    page_number: int | None
+    section_title: str | None
+    source_metadata: dict
+
+
+@router.get(
+    "/{document_id}/sources/{source_id}",
+    response_model=SourceResponse,
+    responses={404: {"description": "No such source for this tenant and document"}},
+)
+async def resolve_source(
+    session: SessionDep, tenant: TenantDep, document_id: uuid.UUID, source_id: str
+) -> SourceResponse:
+    """Resolve a source id from an answer or a search result.
+
+    Scoped to the tenant and the named document: an id belonging to another
+    tenant, or to a different document, is absent rather than forbidden.
+    """
+    hit = await lexical.resolve_source(
+        session, tenant_id=tenant.id, document_id=document_id, source_id=source_id
+    )
+    if hit is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "source not found")
+
+    return SourceResponse(
+        source_id=hit.source_id,
+        document_id=hit.document_id,
+        filename=hit.document_filename,
+        ordinal=hit.ordinal,
+        text=hit.text,
+        page_number=hit.page_number,
+        section_title=hit.section_title,
+        source_metadata=hit.source_metadata,
+    )
