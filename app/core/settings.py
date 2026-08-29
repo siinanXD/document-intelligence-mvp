@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://localhost:6333"
     qdrant_api_key: str | None = None
     qdrant_collection: str = "document_chunks"
+    qdrant_documents_collection: str = "documents"
     # Whole seconds: the Qdrant client takes an int, and a truncated
     # sub-second value would read as "no timeout".
     qdrant_timeout_seconds: int = Field(default=5, ge=1)
@@ -78,6 +79,15 @@ class Settings(BaseSettings):
     # tokens, and a long tail of weak matches makes grounding worse, not better.
     ask_default_limit: int = Field(default=6, ge=1)
     ask_max_limit: int = Field(default=20, ge=1)
+
+    # --- Document relations ---
+    # Thresholds live here rather than in the detection code, so tuning them is
+    # a configuration change and every one of them is visible in one place.
+    relation_version_similarity: float = Field(default=0.92, ge=0.0, le=1.0)
+    relation_related_similarity: float = Field(default=0.75, ge=0.0, le=1.0)
+    relation_min_shared_identifiers: int = Field(default=1, ge=1)
+    relation_min_shared_entities: int = Field(default=2, ge=1)
+    relation_max_candidates: int = Field(default=10, ge=1, le=100)
 
     # --- Uploads ---
     # 50 MiB. Enforced while streaming, so an oversized body is refused before

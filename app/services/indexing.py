@@ -6,7 +6,7 @@ repeatable without duplicating anything.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +26,9 @@ class IndexingError(RuntimeError):
 class IndexingOutcome:
     document_id: object
     indexed: int
+    # Kept so the caller can build a document-level vector without embedding
+    # the same chunks a second time.
+    chunk_vectors: list[list[float]] = field(default_factory=list)
 
 
 async def index_document(
@@ -80,7 +83,7 @@ async def index_document(
         await vector_store.delete_document(tenant_id=tenant_id, document_id=document_id)
         _record_provider(document, embeddings)
         await session.flush()
-        return IndexingOutcome(document_id=document_id, indexed=0)
+        return IndexingOutcome(document_id=document_id, indexed=0, chunk_vectors=[])
 
     try:
         vectors = await embeddings.embed([chunk.text for chunk in chunks])
@@ -111,7 +114,7 @@ async def index_document(
             "chunk_count": indexed,
         },
     )
-    return IndexingOutcome(document_id=document_id, indexed=indexed)
+    return IndexingOutcome(document_id=document_id, indexed=indexed, chunk_vectors=vectors)
 
 
 def _record_provider(document: Document, embeddings: EmbeddingProvider) -> None:

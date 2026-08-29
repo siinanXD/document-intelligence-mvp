@@ -60,6 +60,8 @@ pytest                                    # tests (database tests need PostgreSQ
   that may import a vendor SDK.
 * Provider choice comes from settings through `app/providers/registry.py`; a
   call site asks for a capability and never names a vendor.
+* A model must never invent: absent information stays null or empty, and a
+  citation the model was not given is dropped rather than returned.
 * Implementations take an injected client so tests can supply a fake.
 * Embedding provider, model and version are persisted with indexed data so a
   provider change can be detected and reindexed rather than silently mixed.

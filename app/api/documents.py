@@ -17,6 +17,7 @@ from app.core.settings import get_settings
 from app.models import Document
 from app.services import documents as documents_service
 from app.services import lexical
+from app.services import relations as relations_service
 from app.services.ingestion import ingest_upload
 from app.services.uploads import EmptyFile, FileTooLarge, UnsupportedFileType, validate_upload
 
@@ -177,3 +178,55 @@ async def resolve_source(
         section_title=hit.section_title,
         source_metadata=hit.source_metadata,
     )
+
+
+class RelationTarget(BaseModel):
+    document_id: uuid.UUID
+    filename: str
+    title: str | None
+    document_type: str | None
+
+
+class RelationResponse(BaseModel):
+    """One relation, and the signals that produced it."""
+
+    relation_type: str
+    score: float | None
+    # Which signals fired, and what they saw. A relation nobody can interrogate
+    # is a relation nobody will trust.
+    reason: dict
+    target: RelationTarget
+
+
+@router.get(
+    "/{document_id}/relations",
+    response_model=list[RelationResponse],
+    responses={404: {"description": "No such document for this tenant"}},
+)
+async def list_relations(
+    session: SessionDep, tenant: TenantDep, document_id: uuid.UUID
+) -> list[RelationResponse]:
+    """How this document relates to the tenant's other documents."""
+    document = await documents_service.get_document(
+        session, tenant_id=tenant.id, document_id=document_id
+    )
+    if document is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found")
+
+    found = await relations_service.list_relations(
+        session, tenant_id=tenant.id, document_id=document_id
+    )
+    return [
+        RelationResponse(
+            relation_type=relation.relation_type.value,
+            score=relation.score,
+            reason=relation.reason or {},
+            target=RelationTarget(
+                document_id=target.id,
+                filename=target.filename,
+                title=target.title,
+                document_type=target.document_type,
+            ),
+        )
+        for relation, target in found
+    ]

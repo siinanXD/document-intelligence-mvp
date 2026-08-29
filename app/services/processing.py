@@ -13,13 +13,20 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Chunk, Document, DocumentStatus, IngestionJob
-from app.providers.base import EmbeddingProvider
+from app.providers.base import EmbeddingProvider, LLMProvider
 from app.providers.parsing import DocumentParser, ParsingError
 from app.providers.storage import ObjectNotFoundError, StorageBackend
 from app.services import jobs as jobs_service
+from app.services.document_vectors import get_document_vector_strategy
 from app.services.indexing import IndexingError, index_document
 from app.services.normalization import content_hash, normalize_text, source_id_for
-from app.services.vector_store import VectorStoreError, VectorStoreService
+from app.services.profiling import ProfilingError, profile_document
+from app.services.relations import detect_relations
+from app.services.vector_store import (
+    DocumentVectorStore,
+    VectorStoreError,
+    VectorStoreService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +37,8 @@ class ProcessingOutcome:
     chunk_count: int
     content_duplicate_of: object | None
     indexed: int = 0
+    profiled: bool = False
+    relations: int = 0
 
 
 def normalized_key_for(document: Document) -> str:
@@ -45,6 +54,8 @@ async def process_job(
     job: IngestionJob,
     embeddings: EmbeddingProvider | None = None,
     vector_store: VectorStoreService | None = None,
+    llm: LLMProvider | None = None,
+    document_vectors: DocumentVectorStore | None = None,
 ) -> ProcessingOutcome:
     """Take one claimed job from `processing` to a finished document.
 
@@ -125,16 +136,49 @@ async def process_job(
     # its chunks are searchable, so nothing can be listed as ready and then
     # return nothing when searched.
     indexed = 0
+    chunk_vectors: list[list[float]] = []
     if embeddings is not None and vector_store is not None:
-        indexed = (
-            await index_document(
-                session,
-                embeddings,
-                vector_store,
+        outcome = await index_document(
+            session,
+            embeddings,
+            vector_store,
+            tenant_id=document.tenant_id,
+            document_id=document.id,
+        )
+        indexed = outcome.indexed
+        chunk_vectors = outcome.chunk_vectors
+
+    # Profiling is what makes relation detection more than a similarity score:
+    # shared parties and identifiers come from here.
+    profiled = False
+    if llm is not None:
+        await profile_document(session, llm, tenant_id=document.tenant_id, document_id=document.id)
+        profiled = True
+
+    relations = 0
+    if document_vectors is not None and embeddings is not None:
+        strategy = get_document_vector_strategy()
+        document_vector = strategy.combine(chunk_vectors)
+        await document_vectors.ensure_collection(dimensions=embeddings.dimensions)
+        if document_vector is not None:
+            await document_vectors.upsert(
                 tenant_id=document.tenant_id,
                 document_id=document.id,
+                vector=document_vector,
             )
-        ).indexed
+        else:
+            # Nothing to compare with: clear any vector from a previous run
+            # rather than leaving a stale one answering for this document.
+            await document_vectors.delete(tenant_id=document.tenant_id, document_id=document.id)
+        relations = len(
+            await detect_relations(
+                session,
+                document_vectors,
+                tenant_id=document.tenant_id,
+                document_id=document.id,
+                vector=document_vector,
+            )
+        )
 
     document.status = DocumentStatus.ready
     await session.flush()
@@ -146,6 +190,7 @@ async def process_job(
             "document_id": str(document.id),
             "chunk_count": len(parsed.chunks),
             "indexed": indexed,
+            "relations": relations,
         },
     )
     return ProcessingOutcome(
@@ -153,6 +198,8 @@ async def process_job(
         chunk_count=len(parsed.chunks),
         content_duplicate_of=duplicate_of,
         indexed=indexed,
+        profiled=profiled,
+        relations=relations,
     )
 
 
@@ -205,4 +252,10 @@ async def mark_failed(
     )
 
 
-RETRYABLE_ERRORS = (ParsingError, ObjectNotFoundError, IndexingError, VectorStoreError)
+RETRYABLE_ERRORS = (
+    ParsingError,
+    ObjectNotFoundError,
+    IndexingError,
+    ProfilingError,
+    VectorStoreError,
+)

@@ -15,17 +15,18 @@ from datetime import timedelta
 
 from app.core.db import dispose_engine, get_sessionmaker
 from app.core.settings import get_settings
-from app.providers.base import EmbeddingProvider
+from app.providers.base import EmbeddingProvider, LLMProvider
 from app.providers.parsing import DocumentParser
 from app.providers.registry import (
     get_document_parser,
     get_embedding_provider,
+    get_llm_provider,
     get_storage_backend,
 )
 from app.providers.storage import StorageBackend
 from app.services import jobs as jobs_service
 from app.services.processing import RETRYABLE_ERRORS, mark_failed, process_job
-from app.services.vector_store import VectorStoreService
+from app.services.vector_store import DocumentVectorStore, VectorStoreService
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,8 @@ async def process_one_batch(
     batch_size: int,
     embeddings: EmbeddingProvider | None = None,
     vector_store: VectorStoreService | None = None,
+    llm: LLMProvider | None = None,
+    document_vectors: DocumentVectorStore | None = None,
 ) -> int:
     """Claim and process up to `batch_size` jobs. Returns how many were handled.
 
@@ -70,6 +73,8 @@ async def process_one_batch(
                         job=job,
                         embeddings=embeddings,
                         vector_store=vector_store,
+                        llm=llm,
+                        document_vectors=document_vectors,
                     )
                     await jobs_service.finish(
                         session,
@@ -110,7 +115,9 @@ async def run(stop: asyncio.Event | None = None) -> None:
     storage = get_storage_backend()
     parser = get_document_parser()
     embeddings = get_embedding_provider()
+    llm = get_llm_provider()
     vector_store = VectorStoreService()
+    document_vectors = DocumentVectorStore()
 
     logger.info("worker started", extra={"worker_id": settings.worker_id})
     try:
@@ -122,6 +129,8 @@ async def run(stop: asyncio.Event | None = None) -> None:
                 batch_size=settings.worker_batch_size,
                 embeddings=embeddings,
                 vector_store=vector_store,
+                llm=llm,
+                document_vectors=document_vectors,
             )
             if handled == 0:
                 # Nothing due: wait, but wake immediately when asked to stop.

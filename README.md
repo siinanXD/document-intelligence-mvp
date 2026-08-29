@@ -104,6 +104,31 @@ guess. Source ids the model names but was never given are dropped, so every id
 in a response resolves. When two passages disagree, `conflicting` is true and
 both are returned rather than reconciled into one smooth answer.
 
+### Document relations
+
+```bash
+curl http://127.0.0.1:8000/documents/<id>/relations -H "X-Tenant-Id: <tenant uuid>"
+```
+
+Each relation carries the signals that produced it:
+
+```json
+[{"relation_type": "possible_version", "score": 0.94,
+  "reason": {"signals": ["document_vector", "shared_entities"],
+             "similarity": 0.94, "threshold": 0.92,
+             "shared_organizations": ["Acme"]},
+  "target": {"filename": "contract-v1.pdf", "title": "Service Agreement"}}]
+```
+
+The rules run most-certain-first and the first match wins: identical bytes, then
+identical normalized text, then high similarity *with* shared parties, then a
+shared identifier, then shared parties, then similarity alone. A document that
+matches none of them gets no relation - saying "related" about everything would
+make the feature noise.
+
+Thresholds are configuration (`RELATION_*`), not constants scattered through
+the code, so tuning them is one place and every one is visible.
+
 ### Lexical search
 
 ```bash
