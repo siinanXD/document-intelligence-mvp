@@ -54,9 +54,13 @@ class JobStatus(enum.StrEnum):
 class RelationType(enum.StrEnum):
     """How one document relates to another."""
 
+    # Ordered from the most certain to the least. Everything below the two
+    # hash-based ones is a heuristic, and named so as not to claim otherwise.
     exact_duplicate = "exact_duplicate"
     content_duplicate = "content_duplicate"
-    version_of = "version_of"
+    possible_version = "possible_version"
+    same_case = "same_case"
+    same_entity = "same_entity"
     related = "related"
 
 
@@ -274,6 +278,11 @@ class DocumentRelation(Base):
         Enum(RelationType, name="relation_type", native_enum=True), nullable=False
     )
     score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Which signals produced this relation, so it can be explained rather than
+    # taken on trust, and re-derived when a threshold moves.
+    reason: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=sql_text("'{}'::jsonb")
+    )
 
     created_at: Mapped[datetime] = _created_at()
 
