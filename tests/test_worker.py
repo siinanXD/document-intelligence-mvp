@@ -194,15 +194,23 @@ async def test_a_processed_document_is_not_claimed_again(sessions, storage, work
 async def test_the_loop_stops_when_asked(sessions, storage, monkeypatch):
     from qdrant_client import AsyncQdrantClient
 
-    from app.services.vector_store import VectorStoreService
+    from app.services.vector_store import DocumentVectorStore, VectorStoreService
     from tests.test_indexing import _FakeEmbeddings
+    from tests.test_qa import _FakeLLM
 
     monkeypatch.setattr("app.worker.get_storage_backend", lambda: storage)
     monkeypatch.setattr("app.worker.get_document_parser", _FakeParser)
     monkeypatch.setattr("app.worker.get_embedding_provider", _FakeEmbeddings)
+    monkeypatch.setattr("app.worker.get_llm_provider", _FakeLLM)
     monkeypatch.setattr(
         "app.worker.VectorStoreService",
         lambda: VectorStoreService(client=AsyncQdrantClient(":memory:"), collection="loop"),
+    )
+    monkeypatch.setattr(
+        "app.worker.DocumentVectorStore",
+        lambda: DocumentVectorStore(
+            client=AsyncQdrantClient(":memory:"), collection="loop_documents"
+        ),
     )
 
     async def _noop():
