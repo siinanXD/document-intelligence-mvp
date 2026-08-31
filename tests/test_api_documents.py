@@ -5,6 +5,7 @@ storage root: an upload must produce a document row, a stored object and a
 queued ingestion job together, or none of them.
 """
 
+import hashlib
 import uuid
 
 import httpx
@@ -206,6 +207,53 @@ async def test_an_upload_over_the_limit_is_refused(api, api_tenant, monkeypatch)
     assert response.status_code == 413
 
 
+async def test_an_upload_exactly_at_the_limit_is_accepted(api, api_tenant, db_session, monkeypatch):
+    from app.core.settings import Settings, get_settings
+
+    get_settings.cache_clear()
+    monkeypatch.setenv("MAX_UPLOAD_BYTES", "32")
+    assert Settings().max_upload_bytes == 32
+    client, storage = api
+    content = b"%PDF-" + b"x" * 27
+    assert len(content) == 32
+
+    response = await _upload(client, api_tenant, content=content)
+
+    assert response.status_code == 201
+    document_id = uuid.UUID(response.json()["document"]["id"])
+    document = (
+        (await db_session.execute(select(Document).where(Document.id == document_id)))
+        .scalars()
+        .one()
+    )
+    assert await storage.get(document.storage_key) == content
+    assert document.file_hash == hashlib.sha256(content).hexdigest()
+
+
+async def test_an_oversized_upload_leaves_no_row_or_object(
+    api, api_tenant, db_session, monkeypatch
+):
+    from app.core.settings import Settings, get_settings
+
+    get_settings.cache_clear()
+    monkeypatch.setenv("MAX_UPLOAD_BYTES", "16")
+    assert Settings().max_upload_bytes == 16
+    client, storage = api
+
+    response = await _upload(client, api_tenant, content=b"%PDF-" + b"x" * 100)
+
+    assert response.status_code == 413
+    documents = (
+        (await db_session.execute(select(Document).where(Document.tenant_id == api_tenant.id)))
+        .scalars()
+        .all()
+    )
+    assert documents == []
+    # Local storage root stays empty: nothing was written for the refusal.
+    stored = list(storage._root.rglob("*")) if storage._root.exists() else []
+    assert stored == []
+
+
 async def test_a_refused_upload_stores_nothing(api, api_tenant, db_session):
     client, storage = api
 
@@ -217,6 +265,58 @@ async def test_a_refused_upload_stores_nothing(api, api_tenant, db_session):
         .all()
     )
     assert documents == []
+    stored = list(storage._root.rglob("*")) if storage._root.exists() else []
+    assert stored == []
+
+
+async def test_request_body_limit_rejects_before_upload_handler(db_session, tmp_path, monkeypatch):
+    """Starlette must refuse an oversized body before multipart finishes spooling.
+
+    The app is created *after* lowering MAX_UPLOAD_BYTES so the body-limit
+    middleware is wired to that ceiling (plus multipart headroom).
+    """
+    from app.core.settings import Settings, get_settings
+
+    get_settings.cache_clear()
+    monkeypatch.setenv("MAX_UPLOAD_BYTES", "1024")
+    assert Settings().max_upload_bytes == 1024
+
+    storage = LocalStorageBackend(tmp_path / "objects")
+    application = create_app()
+
+    async def _session_override():
+        yield db_session
+
+    application.dependency_overrides[get_session] = _session_override
+    application.dependency_overrides[get_storage] = lambda: storage
+
+    tenant = Tenant(slug=f"body-limit-{uuid.uuid4().hex[:8]}", name="Body limit")
+    db_session.add(tenant)
+    await db_session.flush()
+
+    # Well above 1024 + 256 KiB multipart headroom.
+    huge = b"%PDF-" + b"x" * (400 * 1024)
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=application), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                "/documents",
+                headers={"X-Tenant-Id": str(tenant.id)},
+                files={"file": ("contract.pdf", huge, "application/pdf")},
+            )
+
+        assert response.status_code == 413
+        documents = (
+            (await db_session.execute(select(Document).where(Document.tenant_id == tenant.id)))
+            .scalars()
+            .all()
+        )
+        assert documents == []
+        stored = list(storage._root.rglob("*")) if storage._root.exists() else []
+        assert stored == []
+    finally:
+        get_settings.cache_clear()
 
 
 async def test_listing_returns_only_this_tenants_documents(api, api_tenant, db_session):
