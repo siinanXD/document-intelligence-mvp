@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Chunk, Document
 from app.providers.base import EmbeddingProvider
+from app.services.indexing import is_current_embedding
 from app.services.vector_store import VectorStoreService
 
 logger = logging.getLogger(__name__)
@@ -73,9 +74,12 @@ async def search(
 
     # Read the text from PostgreSQL, filtered by tenant again. The vector
     # store having returned an id is not on its own a reason to disclose a row.
+    # Stale vectors (a different provider/model/version) are dropped here so a
+    # model change cannot silently rank two incompatible spaces against each
+    # other and return the result as if it were a real answer.
     rows = (
         await session.execute(
-            select(Chunk, Document.filename)
+            select(Chunk, Document)
             .join(Document, Document.id == Chunk.document_id)
             .where(
                 Chunk.tenant_id == tenant_id,
@@ -89,7 +93,7 @@ async def search(
         SearchHit(
             chunk_id=chunk.id,
             document_id=chunk.document_id,
-            document_filename=filename,
+            document_filename=document.filename,
             source_id=chunk.source_id,
             text=chunk.text,
             score=scores[chunk.id],
@@ -98,16 +102,18 @@ async def search(
             section_title=chunk.section_title,
             source_metadata=chunk.source_metadata or {},
         )
-        for chunk, filename in rows
+        for chunk, document in rows
+        if is_current_embedding(document, embeddings)
     ]
 
     missing = len(scores) - len(hits)
     if missing:
-        # The index is ahead of the database: points for chunks that have been
-        # deleted. Worth knowing about, never worth failing the search over.
+        # Points whose durable row is gone, or whose embedding identity no
+        # longer matches the current provider. Worth knowing about, never
+        # worth failing the search over or returning as if they were current.
         logger.info(
-            "vector store returned points with no durable row",
-            extra={"tenant_id": str(tenant_id), "missing": missing},
+            "vector store returned points that were not returned",
+            extra={"tenant_id": str(tenant_id), "dropped": missing},
         )
 
     hits.sort(key=lambda hit: hit.score, reverse=True)

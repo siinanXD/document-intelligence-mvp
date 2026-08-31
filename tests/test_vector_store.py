@@ -221,3 +221,20 @@ async def test_a_total_outage_surfaces_rather_than_answering_empty(store, monkey
 
     with pytest.raises(VectorStoreError):
         await store.search(tenant_id=uuid.uuid4(), vector=[1.0, 0, 0, 0], limit=5)
+
+
+async def test_a_dimension_mismatch_is_refused_rather_than_mixed(store):
+    from app.services.vector_store import VectorStoreError
+
+    with pytest.raises(VectorStoreError, match="dimensions"):
+        await store.ensure_collection(dimensions=DIMENSIONS + 4)
+
+
+async def test_deleting_from_a_missing_collection_is_success():
+    client = AsyncQdrantClient(":memory:")
+    store = VectorStoreService(client=client, collection="never_created")
+
+    await store.delete_document(tenant_id=uuid.uuid4(), document_id=uuid.uuid4())
+    await store.delete_tenant(tenant_id=uuid.uuid4())
+
+    await client.close()

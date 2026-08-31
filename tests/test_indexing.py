@@ -102,6 +102,7 @@ async def test_indexing_records_which_provider_made_the_vectors(
     assert document.embedding_provider == "fake"
     assert document.embedding_model == "fake-embed"
     assert document.embedding_version == "v1"
+    assert document.embedding_dimensions == DIMENSIONS
 
 
 async def test_search_finds_the_chunk_that_answers_the_query(
@@ -303,3 +304,51 @@ async def test_an_empty_query_asks_the_provider_nothing(db_session, store, embed
         await search(db_session, embeddings, store, tenant_id=tenant.id, query="   ", limit=5) == []
     )
     assert embeddings.calls == []
+
+
+async def test_a_stale_embedding_identity_is_not_returned_as_a_hit(
+    db_session, store, embeddings, tenant, make_document, add_chunks
+):
+    """A later model must not rank leftover vectors as if they were current."""
+    from app.services.indexing import is_current_embedding
+
+    document = await make_document(tenant)
+    await add_chunks(document, tenant, ["Payment is due within thirty days."])
+    await index_document(
+        db_session, embeddings, store, tenant_id=tenant.id, document_id=document.id
+    )
+
+    class _V2(_FakeEmbeddings):
+        version = "v2"
+
+    later = _V2()
+    assert is_current_embedding(document, embeddings) is True
+    assert is_current_embedding(document, later) is False
+
+    hits = await search(db_session, later, store, tenant_id=tenant.id, query="payment", limit=5)
+    assert hits == []
+
+
+async def test_changing_embedding_dimensions_refuses_to_mix_spaces(
+    db_session, store, embeddings, tenant, make_document, add_chunks
+):
+    from app.services.vector_store import VectorStoreError
+
+    document = await make_document(tenant)
+    await add_chunks(document, tenant, ["Payment is due within thirty days."])
+    await index_document(
+        db_session, embeddings, store, tenant_id=tenant.id, document_id=document.id
+    )
+
+    class _Wide(_FakeEmbeddings):
+        model = "fake-wide"
+        dimensions = 16
+
+        async def embed(self, texts: list[str]) -> list[list[float]]:
+            self.calls.append(list(texts))
+            return [[1.0] + [0.0] * 15 for _ in texts]
+
+    with pytest.raises(VectorStoreError):
+        await index_document(
+            db_session, _Wide(), store, tenant_id=tenant.id, document_id=document.id
+        )

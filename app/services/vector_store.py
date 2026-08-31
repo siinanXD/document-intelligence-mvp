@@ -58,11 +58,23 @@ class VectorStoreService:
         would multiply Qdrant's per-collection overhead by the customer count
         and make a cross-tenant query a matter of naming the wrong one, rather
         than of omitting a filter that is always applied.
+
+        An existing collection with a different size is an error, not a
+        recreation. Silently upserting into the wrong space would mix
+        incompatible vectors; the operator recreates the collection and
+        reindexes instead.
         """
         try:
             existing = await self._client.get_collections()
             names = {collection.name for collection in existing.collections}
             if self._collection in names:
+                actual = await self.collection_dimensions()
+                if actual is None:
+                    raise VectorStoreError("could not read collection dimensions")
+                if actual != dimensions:
+                    raise VectorStoreError(
+                        f"vector collection dimensions are {actual}, provider has {dimensions}"
+                    )
                 return False
 
             await self._client.create_collection(
@@ -71,6 +83,8 @@ class VectorStoreService:
                     size=dimensions, distance=models.Distance.COSINE
                 ),
             )
+        except VectorStoreError:
+            raise
         except Exception as exc:
             raise VectorStoreError(
                 f"could not prepare the collection ({type(exc).__name__})"
@@ -112,6 +126,10 @@ class VectorStoreService:
         if not points:
             return 0
 
+        expected = len(points[0][1])
+        if any(len(vector) != expected for _, vector, _ in points):
+            raise VectorStoreError("cannot index mixed-dimension vectors for one document")
+
         structs = [
             models.PointStruct(
                 id=str(chunk_id),
@@ -134,32 +152,51 @@ class VectorStoreService:
         return len(structs)
 
     async def delete_document(self, *, tenant_id: UUID, document_id: UUID) -> None:
-        """Remove every point for one document of one tenant."""
+        """Remove every point for one document of one tenant.
+
+        A missing collection is already the desired end state, so repeating a
+        delete after the collection was never created (or was recreated empty)
+        is success rather than an error.
+        """
+        await self._delete_matching(
+            tenant_id=tenant_id,
+            document_ids=[document_id],
+            failure="could not remove document points",
+        )
+
+    async def delete_tenant(self, *, tenant_id: UUID) -> None:
+        """Remove every point belonging to a tenant."""
+        await self._delete_matching(tenant_id=tenant_id, failure="could not remove tenant points")
+
+    async def _delete_matching(
+        self,
+        *,
+        tenant_id: UUID,
+        document_ids: list[UUID] | None = None,
+        failure: str,
+    ) -> None:
         try:
             await self._client.delete(
                 collection_name=self._collection,
                 points_selector=models.FilterSelector(
-                    filter=self._filter(tenant_id=tenant_id, document_ids=[document_id])
+                    filter=self._filter(tenant_id=tenant_id, document_ids=document_ids)
                 ),
                 wait=True,
             )
         except Exception as exc:
-            raise VectorStoreError(
-                f"could not remove document points ({type(exc).__name__})"
-            ) from None
+            if await self._collection_is_absent():
+                return
+            raise VectorStoreError(f"{failure} ({type(exc).__name__})") from None
 
-    async def delete_tenant(self, *, tenant_id: UUID) -> None:
-        """Remove every point belonging to a tenant."""
+    async def collection_dimensions(self) -> int | None:
+        """Return the collection's vector size, or None if it is not there."""
         try:
-            await self._client.delete(
-                collection_name=self._collection,
-                points_selector=models.FilterSelector(filter=self._filter(tenant_id=tenant_id)),
-                wait=True,
-            )
-        except Exception as exc:
-            raise VectorStoreError(
-                f"could not remove tenant points ({type(exc).__name__})"
-            ) from None
+            info = await self._client.get_collection(self._collection)
+        except Exception:
+            return None
+        vectors = getattr(getattr(info.config, "params", None), "vectors", None)
+        size = getattr(vectors, "size", None)
+        return int(size) if size is not None else None
 
     async def search(
         self,
@@ -276,20 +313,8 @@ class DocumentVectorStore:
             ) from None
 
     async def delete(self, *, tenant_id: UUID, document_id: UUID) -> None:
-        try:
-            await self._client.delete(
-                collection_name=self._collection,
-                points_selector=models.FilterSelector(
-                    filter=VectorStoreService._filter(
-                        tenant_id=tenant_id, document_ids=[document_id]
-                    )
-                ),
-                wait=True,
-            )
-        except Exception as exc:
-            raise VectorStoreError(
-                f"could not remove the document vector ({type(exc).__name__})"
-            ) from None
+        service = VectorStoreService(client=self._client, collection=self._collection)
+        await service.delete_document(tenant_id=tenant_id, document_id=document_id)
 
     async def similar(
         self, *, tenant_id: UUID, vector: list[float], limit: int, exclude: UUID | None = None
