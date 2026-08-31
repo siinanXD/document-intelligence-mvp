@@ -9,15 +9,12 @@ unknown stays `None`, never `0.0`.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Generic, TypeVar
 
 from app.providers.prompts import Prompt
 
-T = TypeVar("T")
-
 
 @dataclass(frozen=True)
-class GenerationResult(Generic[T]):
+class GenerationResult[T]:
     """One completed generation, with metadata independent of the vendor."""
 
     content: T
@@ -117,7 +114,7 @@ def derive_total_tokens(input_tokens: int | None, output_tokens: int | None) -> 
     return input_tokens + output_tokens
 
 
-def generation_from_prompt(
+def generation_from_prompt[T](
     content: T,
     prompt: Prompt,
     *,
