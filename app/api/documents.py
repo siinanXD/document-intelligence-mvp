@@ -28,7 +28,7 @@ from app.services.reindexing import (
     reindex_document,
     reindex_tenant,
 )
-from app.services.uploads import EmptyFile, FileTooLarge, UnsupportedFileType, validate_upload
+from app.services.uploads import EmptyFile, FileTooLarge, UnsupportedFileType, receive_upload
 from app.services.vector_store import DocumentVectorStore, VectorStoreError, VectorStoreService
 
 logger = logging.getLogger(__name__)
@@ -87,15 +87,12 @@ async def upload_document(
     file: Annotated[UploadFile, File()],
 ) -> UploadResponse:
     settings = get_settings()
-    content = await file.read()
 
+    # Size is enforced while the body is still streaming: we never call
+    # `file.read()` without a bound, so an oversized upload is refused before
+    # the full body sits in memory. SHA-256 is accumulated in the same pass.
     try:
-        upload = validate_upload(
-            filename=file.filename or "upload",
-            declared_mime_type=file.content_type,
-            content=content,
-            max_bytes=settings.max_upload_bytes,
-        )
+        upload, content = await receive_upload(file, max_bytes=settings.max_upload_bytes)
     except EmptyFile as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     except FileTooLarge as exc:

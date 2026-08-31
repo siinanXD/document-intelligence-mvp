@@ -9,6 +9,8 @@ from app.services.uploads import (
     FileTooLarge,
     UnsupportedFileType,
     extension_of,
+    read_upload_bounded,
+    receive_upload,
     safe_filename,
     storage_key_for,
     validate_upload,
@@ -17,6 +19,47 @@ from app.services.uploads import (
 PDF = b"%PDF-1.7\nbody"
 DOCX = b"PK\x03\x04" + b"\x00" * 40
 MAX = 1024 * 1024
+
+
+class _FakeUpload:
+    """Minimal UploadFile stand-in for streaming tests."""
+
+    def __init__(
+        self,
+        data: bytes,
+        *,
+        filename: str = "contract.pdf",
+        content_type: str | None = "application/pdf",
+        fail_after: int | None = None,
+        close_error: Exception | None = None,
+    ) -> None:
+        self._data = data
+        self._pos = 0
+        self.filename = filename
+        self.content_type = content_type
+        self.fail_after = fail_after
+        self.close_error = close_error
+        self.closed = False
+        self.bytes_read = 0
+
+    async def read(self, size: int = -1) -> bytes:
+        if self.fail_after is not None and self._pos >= self.fail_after:
+            raise RuntimeError("connection reset")
+        if size < 0:
+            size = len(self._data) - self._pos
+        end = self._pos + size
+        if self.fail_after is not None:
+            end = min(end, self.fail_after)
+        end = min(end, len(self._data))
+        chunk = self._data[self._pos : end]
+        self._pos = end
+        self.bytes_read += len(chunk)
+        return chunk
+
+    async def close(self) -> None:
+        self.closed = True
+        if self.close_error is not None:
+            raise self.close_error
 
 
 def _validate(**overrides):
@@ -158,3 +201,104 @@ def test_a_traversal_filename_cannot_shape_the_storage_key():
         "11111111-1111-1111-1111-111111111111/22222222-2222-2222-2222-222222222222/escape.pdf"
     )
     assert ".." not in key
+
+
+@pytest.mark.asyncio
+async def test_streaming_accepts_a_body_exactly_at_the_limit():
+    limit = 32
+    content = b"%PDF-" + b"x" * (limit - 5)
+    assert len(content) == limit
+
+    body, digest = await read_upload_bounded(_FakeUpload(content).read, max_bytes=limit)
+
+    assert body == content
+    assert digest == hashlib.sha256(content).hexdigest()
+
+
+@pytest.mark.asyncio
+async def test_streaming_refuses_one_byte_over_the_limit_without_keeping_it():
+    limit = 32
+    content = b"%PDF-" + b"x" * (limit - 4)  # limit + 1
+    assert len(content) == limit + 1
+    upload = _FakeUpload(content)
+
+    with pytest.raises(FileTooLarge):
+        await read_upload_bounded(upload.read, max_bytes=limit, chunk_size=8)
+
+    # We stop as soon as the overflow byte arrives: never pull the rest.
+    assert upload.bytes_read == limit + 1
+    assert upload._pos == limit + 1
+
+
+@pytest.mark.asyncio
+async def test_streaming_empty_body_returns_empty_bytes():
+    body, digest = await read_upload_bounded(_FakeUpload(b"").read, max_bytes=16)
+
+    assert body == b""
+    assert digest == hashlib.sha256(b"").hexdigest()
+
+
+@pytest.mark.asyncio
+async def test_streaming_hash_matches_one_shot_sha256():
+    """Duplicate detection must see the same digest as before streaming."""
+    content = b"%PDF-1.7\n" + b"clause " * 200
+    body, digest = await read_upload_bounded(
+        _FakeUpload(content).read, max_bytes=10_000, chunk_size=17
+    )
+
+    assert body == content
+    assert digest == hashlib.sha256(content).hexdigest()
+
+
+@pytest.mark.asyncio
+async def test_receive_upload_closes_the_stream_after_an_empty_body():
+    upload = _FakeUpload(b"")
+
+    with pytest.raises(EmptyFile):
+        await receive_upload(upload, max_bytes=64)
+
+    assert upload.closed is True
+
+
+@pytest.mark.asyncio
+async def test_receive_upload_closes_the_stream_after_a_size_rejection():
+    upload = _FakeUpload(b"%PDF-" + b"x" * 100)
+
+    with pytest.raises(FileTooLarge):
+        await receive_upload(upload, max_bytes=16, chunk_size=4)
+
+    assert upload.closed is True
+
+
+@pytest.mark.asyncio
+async def test_an_interrupted_upload_discards_buffers_and_closes():
+    content = b"%PDF-1.7\n" + b"y" * 200
+    upload = _FakeUpload(content, fail_after=40)
+
+    with pytest.raises(RuntimeError, match="connection reset"):
+        await receive_upload(upload, max_bytes=10_000, chunk_size=16)
+
+    assert upload.closed is True
+    # Never held more than the bytes delivered before the failure.
+    assert upload.bytes_read <= 40
+
+
+@pytest.mark.asyncio
+async def test_receive_upload_preserves_hash_and_mime_validation():
+    upload = _FakeUpload(PDF)
+    validated, content = await receive_upload(upload, max_bytes=MAX)
+
+    assert content == PDF
+    assert validated.file_hash == hashlib.sha256(PDF).hexdigest()
+    assert validated.mime_type == "application/pdf"
+    assert upload.closed is True
+
+
+@pytest.mark.asyncio
+async def test_a_close_failure_does_not_hide_a_validation_error():
+    upload = _FakeUpload(b"", close_error=OSError("already closed"))
+
+    with pytest.raises(EmptyFile):
+        await receive_upload(upload, max_bytes=64)
+
+    assert upload.closed is True

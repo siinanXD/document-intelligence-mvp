@@ -5,12 +5,25 @@ is checked against the filename extension *and* the leading bytes, and a file
 is only accepted when all three agree on something we support. Docling remains
 the final authority on whether a file can actually be parsed; this layer only
 refuses what is obviously wrong, cheaply, before anything expensive happens.
+
+HTTP uploads are read in bounded chunks via `receive_upload`: the size limit is
+enforced while streaming, SHA-256 is computed in the same pass, and buffers are
+discarded as soon as a limit or failure is hit. Callers that already hold bytes
+(evaluation fixtures, tests) still use `validate_upload` directly.
 """
 
 import hashlib
+import logging
 import re
 import unicodedata
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
+
+# How much of the body we pull per await. Small enough that an oversized upload
+# is refused after roughly one chunk past the limit, not after the whole body.
+_READ_CHUNK_SIZE = 64 * 1024
 
 # extension -> (canonical mime type, accepted client-declared mime types)
 SUPPORTED_TYPES: dict[str, tuple[str, frozenset[str]]] = {
@@ -88,13 +101,91 @@ def extension_of(filename: str) -> str:
     return f".{extension}" if separator else ""
 
 
+async def read_upload_bounded(
+    read: Callable[[int], Awaitable[bytes]],
+    *,
+    max_bytes: int,
+    chunk_size: int = _READ_CHUNK_SIZE,
+) -> tuple[bytes, str]:
+    """Read an upload in chunks, hashing as we go, stopping at `max_bytes`.
+
+    `read` is typically `UploadFile.read`. Raises `FileTooLarge` as soon as one
+    more byte would push the total over the limit; whatever has been buffered
+    is discarded before the exception leaves. An empty body returns
+    ``(b"", <hash of empty>)`` so the caller can raise `EmptyFile`.
+    """
+    hasher = hashlib.sha256()
+    parts: list[bytes] = []
+    total = 0
+    try:
+        while True:
+            # Ask for at most one byte past the remaining budget so we can refuse
+            # without pulling a full extra chunk into memory.
+            remaining = max_bytes - total
+            chunk = await read(min(chunk_size, remaining + 1))
+            if not chunk:
+                break
+            if total + len(chunk) > max_bytes:
+                parts.clear()
+                raise FileTooLarge(f"the uploaded file exceeds {max_bytes} bytes")
+            total += len(chunk)
+            hasher.update(chunk)
+            parts.append(chunk)
+        return b"".join(parts), hasher.hexdigest()
+    except BaseException:
+        parts.clear()
+        raise
+
+
+async def receive_upload(
+    file,
+    *,
+    max_bytes: int,
+    chunk_size: int = _READ_CHUNK_SIZE,
+) -> tuple[ValidatedUpload, bytes]:
+    """Stream an `UploadFile`, enforce the size limit, hash and validate it.
+
+    The underlying stream is closed on every path - success, rejection, or
+    mid-read failure - so a partial spool does not linger after we refuse.
+    Nothing here writes to object storage or the database; a rejected upload
+    therefore leaves neither a row nor a stored object.
+    """
+    try:
+        content, file_hash = await read_upload_bounded(
+            file.read, max_bytes=max_bytes, chunk_size=chunk_size
+        )
+        upload = validate_upload(
+            filename=file.filename or "upload",
+            declared_mime_type=file.content_type,
+            content=content,
+            max_bytes=max_bytes,
+            file_hash=file_hash,
+        )
+        return upload, content
+    finally:
+        try:
+            await file.close()
+        except Exception:
+            # Closing a half-read multipart part must not mask the original error.
+            logger.debug("upload stream close failed", exc_info=True)
+
+
 def validate_upload(
-    *, filename: str, declared_mime_type: str | None, content: bytes, max_bytes: int
+    *,
+    filename: str,
+    declared_mime_type: str | None,
+    content: bytes,
+    max_bytes: int,
+    file_hash: str | None = None,
 ) -> ValidatedUpload:
     """Validate an upload and return what we will actually record about it.
 
     Raises EmptyFile, FileTooLarge or UnsupportedFileType. The returned
     mime_type is the canonical one for the extension, not the client's claim.
+
+    `file_hash` is the SHA-256 hex digest of `content`. When the caller already
+    computed it while streaming (see `receive_upload`), pass it through so the
+    digest stays identical without a second pass over the bytes.
     """
     if not content:
         raise EmptyFile("the uploaded file is empty")
@@ -124,7 +215,7 @@ def validate_upload(
     return ValidatedUpload(
         filename=name,
         mime_type=canonical_mime,
-        file_hash=hashlib.sha256(content).hexdigest(),
+        file_hash=file_hash if file_hash is not None else hashlib.sha256(content).hexdigest(),
         size=len(content),
     )
 

@@ -5,6 +5,7 @@ storage root: an upload must produce a document row, a stored object and a
 queued ingestion job together, or none of them.
 """
 
+import hashlib
 import uuid
 
 import httpx
@@ -206,6 +207,53 @@ async def test_an_upload_over_the_limit_is_refused(api, api_tenant, monkeypatch)
     assert response.status_code == 413
 
 
+async def test_an_upload_exactly_at_the_limit_is_accepted(api, api_tenant, db_session, monkeypatch):
+    from app.core.settings import Settings, get_settings
+
+    get_settings.cache_clear()
+    monkeypatch.setenv("MAX_UPLOAD_BYTES", "32")
+    assert Settings().max_upload_bytes == 32
+    client, storage = api
+    content = b"%PDF-" + b"x" * 27
+    assert len(content) == 32
+
+    response = await _upload(client, api_tenant, content=content)
+
+    assert response.status_code == 201
+    document_id = uuid.UUID(response.json()["document"]["id"])
+    document = (
+        (await db_session.execute(select(Document).where(Document.id == document_id)))
+        .scalars()
+        .one()
+    )
+    assert await storage.get(document.storage_key) == content
+    assert document.file_hash == hashlib.sha256(content).hexdigest()
+
+
+async def test_an_oversized_upload_leaves_no_row_or_object(
+    api, api_tenant, db_session, monkeypatch
+):
+    from app.core.settings import Settings, get_settings
+
+    get_settings.cache_clear()
+    monkeypatch.setenv("MAX_UPLOAD_BYTES", "16")
+    assert Settings().max_upload_bytes == 16
+    client, storage = api
+
+    response = await _upload(client, api_tenant, content=b"%PDF-" + b"x" * 100)
+
+    assert response.status_code == 413
+    documents = (
+        (await db_session.execute(select(Document).where(Document.tenant_id == api_tenant.id)))
+        .scalars()
+        .all()
+    )
+    assert documents == []
+    # Local storage root stays empty: nothing was written for the refusal.
+    stored = list(storage._root.rglob("*")) if storage._root.exists() else []
+    assert stored == []
+
+
 async def test_a_refused_upload_stores_nothing(api, api_tenant, db_session):
     client, storage = api
 
@@ -217,9 +265,8 @@ async def test_a_refused_upload_stores_nothing(api, api_tenant, db_session):
         .all()
     )
     assert documents == []
-
-
-async def test_listing_returns_only_this_tenants_documents(api, api_tenant, db_session):
+    stored = list(storage._root.rglob("*")) if storage._root.exists() else []
+    assert stored == []
     client, _ = api
     other = Tenant(slug=f"other-{uuid.uuid4().hex[:8]}", name="Other")
     db_session.add(other)
