@@ -29,6 +29,15 @@ Fill in `.github/pull_request_template.md`:
 * test evidence - the commands run and their result,
 * known limitations and anything deliberately left out.
 
+## Review loop
+
+* Codex review is configured outside the repository and starts automatically when a PR is opened for review. Use `@codex review` when an explicit fresh pass is wanted on the current head.
+* The CI workflow requests GitHub Copilot code review for every non-draft PR when it is opened, reopened, marked ready, or receives a new push. This gives each fix commit a fresh independent review pass without relying on repository rulesets.
+* Copilot review follows `.github/copilot-instructions.md` and should focus on concrete correctness, security, privacy, tenant-isolation and regression findings.
+* Review comments do not authorize blind changes. Verify each finding against the actual code, then apply only the smallest safe fix with a regression test where appropriate.
+* A fix stays on the existing issue branch and existing PR. After the push, CI and automatic review run again.
+* Do not auto-merge. Final merge remains an explicit repository-owner decision after CI and review findings are clean.
+
 ## Rules
 
 * Never force-push a branch someone else may have checked out.
@@ -43,3 +52,8 @@ Fill in `.github/pull_request_template.md`:
 `.github/workflows/ci.yml` runs on every push and pull request: it installs the
 project with dev extras on Python 3.12, runs `ruff check .`, `ruff format --check .`
 and `pytest`. A red CI run is the author's to fix.
+
+For non-draft pull requests, the same workflow also requests GitHub Copilot code
+review on open/reopen/ready-for-review and on every new PR commit. The request uses
+GitHub's built-in token and the documented `copilot-pull-request-reviewer[bot]`
+reviewer; no external API key or paid provider call is added to CI.
