@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-sudo service docker start
+# Idempotent: `service docker start` exits non-zero when Docker is already up.
+sudo service docker start || true
 
 for _ in $(seq 1 30); do
   if docker info >/dev/null 2>&1; then
