@@ -88,9 +88,10 @@ async def upload_document(
 ) -> UploadResponse:
     settings = get_settings()
 
-    # Size is enforced while the body is still streaming: we never call
-    # `file.read()` without a bound, so an oversized upload is refused before
-    # the full body sits in memory. SHA-256 is accumulated in the same pass.
+    # Size is enforced in two places: RequestBodyLimitMiddleware cuts off the
+    # raw request before multipart parsing spools an arbitrarily large part,
+    # and receive_upload enforces MAX_UPLOAD_BYTES on the file bytes themselves
+    # while hashing. We never call `file.read()` without a bound.
     try:
         upload, content = await receive_upload(file, max_bytes=settings.max_upload_bytes)
     except EmptyFile as exc:

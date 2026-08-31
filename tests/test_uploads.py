@@ -9,6 +9,7 @@ from app.services.uploads import (
     FileTooLarge,
     UnsupportedFileType,
     extension_of,
+    max_request_body_bytes,
     read_upload_bounded,
     receive_upload,
     safe_filename,
@@ -302,3 +303,21 @@ async def test_a_close_failure_does_not_hide_a_validation_error():
         await receive_upload(upload, max_bytes=64)
 
     assert upload.closed is True
+
+
+def test_request_body_limit_allows_multipart_overhead():
+    """The ASGI body ceiling must sit above MAX_UPLOAD_BYTES for framing."""
+    assert max_request_body_bytes(1024) > 1024
+    assert max_request_body_bytes(50 * 1024 * 1024) == 50 * 1024 * 1024 + 256 * 1024
+
+
+@pytest.mark.asyncio
+async def test_streaming_spool_matches_one_shot_bytes_for_multi_chunk_bodies():
+    """Spooling must not change the bytes or hash handed to storage/duplicates."""
+    content = b"%PDF-1.7\n" + (b"block-" * 5000)
+    body, digest = await read_upload_bounded(
+        _FakeUpload(content).read, max_bytes=len(content), chunk_size=64
+    )
+
+    assert body == content
+    assert digest == hashlib.sha256(content).hexdigest()

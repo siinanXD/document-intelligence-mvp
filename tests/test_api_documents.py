@@ -267,6 +267,59 @@ async def test_a_refused_upload_stores_nothing(api, api_tenant, db_session):
     assert documents == []
     stored = list(storage._root.rglob("*")) if storage._root.exists() else []
     assert stored == []
+
+
+async def test_request_body_limit_rejects_before_upload_handler(db_session, tmp_path, monkeypatch):
+    """Starlette must refuse an oversized body before multipart finishes spooling.
+
+    The app is created *after* lowering MAX_UPLOAD_BYTES so the body-limit
+    middleware is wired to that ceiling (plus multipart headroom).
+    """
+    from app.core.settings import Settings, get_settings
+
+    get_settings.cache_clear()
+    monkeypatch.setenv("MAX_UPLOAD_BYTES", "1024")
+    assert Settings().max_upload_bytes == 1024
+
+    storage = LocalStorageBackend(tmp_path / "objects")
+    application = create_app()
+
+    async def _session_override():
+        yield db_session
+
+    application.dependency_overrides[get_session] = _session_override
+    application.dependency_overrides[get_storage] = lambda: storage
+
+    tenant = Tenant(slug=f"body-limit-{uuid.uuid4().hex[:8]}", name="Body limit")
+    db_session.add(tenant)
+    await db_session.flush()
+
+    # Well above 1024 + 256 KiB multipart headroom.
+    huge = b"%PDF-" + b"x" * (400 * 1024)
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=application), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                "/documents",
+                headers={"X-Tenant-Id": str(tenant.id)},
+                files={"file": ("contract.pdf", huge, "application/pdf")},
+            )
+
+        assert response.status_code == 413
+        documents = (
+            (await db_session.execute(select(Document).where(Document.tenant_id == tenant.id)))
+            .scalars()
+            .all()
+        )
+        assert documents == []
+        stored = list(storage._root.rglob("*")) if storage._root.exists() else []
+        assert stored == []
+    finally:
+        get_settings.cache_clear()
+
+
+async def test_listing_returns_only_this_tenants_documents(api, api_tenant, db_session):
     client, _ = api
     other = Tenant(slug=f"other-{uuid.uuid4().hex[:8]}", name="Other")
     db_session.add(other)

@@ -64,10 +64,11 @@ authentication - nothing issues credentials yet, and real authentication is
 part of the hardening work. Supported uploads are PDF, DOCX, PPTX, XLSX, HTML,
 Markdown and plain text; the extension, the declared content type and the
 leading bytes all have to agree. Upload size is capped by `MAX_UPLOAD_BYTES`
-(default 50 MiB) and enforced while the body streams: an oversized request is
-refused with `413` as soon as the limit is crossed, without buffering the rest
-of the body. The file SHA-256 used for duplicate detection is computed in that
-same pass.
+(default 50 MiB). The limit is applied twice: Starlette's request body limit
+stops oversized bodies before multipart parsing spools them, and the upload
+handler streams the file part in bounded chunks, refusing with `413` as soon as
+the file bytes cross the limit. The file SHA-256 used for duplicate detection
+is computed in that same pass.
 
 ### Searching
 

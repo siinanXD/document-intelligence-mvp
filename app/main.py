@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from starlette.middleware import Middleware
+from starlette.middleware.body_limit import RequestBodyLimitMiddleware
 
 from app import __version__
 from app.api.ask import router as ask_router
@@ -17,6 +18,7 @@ from app.api.search import router as search_router
 from app.core.db import dispose_engine
 from app.core.qdrant import close_qdrant_client, warm_qdrant_client
 from app.core.settings import get_settings
+from app.services.uploads import max_request_body_bytes
 
 
 @asynccontextmanager
@@ -34,7 +36,15 @@ def create_app() -> FastAPI:
         title=settings.app_name,
         version=__version__,
         lifespan=lifespan,
-        middleware=[Middleware(RequestLoggingMiddleware)],
+        middleware=[
+            # Outermost: refuse oversized bodies before multipart parsing spools
+            # them. Headroom covers multipart framing around the file bytes.
+            Middleware(
+                RequestBodyLimitMiddleware,
+                max_body_size=max_request_body_bytes(settings.max_upload_bytes),
+            ),
+            Middleware(RequestLoggingMiddleware),
+        ],
     )
     app.include_router(health_router)
     app.include_router(documents_router)

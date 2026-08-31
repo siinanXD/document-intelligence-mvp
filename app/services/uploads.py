@@ -7,9 +7,13 @@ the final authority on whether a file can actually be parsed; this layer only
 refuses what is obviously wrong, cheaply, before anything expensive happens.
 
 HTTP uploads are read in bounded chunks via `receive_upload`: the size limit is
-enforced while streaming, SHA-256 is computed in the same pass, and buffers are
-discarded as soon as a limit or failure is hit. Callers that already hold bytes
-(evaluation fixtures, tests) still use `validate_upload` directly.
+enforced while streaming, SHA-256 is computed in the same pass, and accepted
+bytes are assembled via a spool so we do not keep both a chunk list and a
+joined copy in memory. Callers that already hold bytes (evaluation fixtures,
+tests) still use `validate_upload` directly.
+
+The ASGI stack also applies Starlette's ``RequestBodyLimitMiddleware`` so an
+oversized request is cut off before multipart parsing spools the whole part.
 """
 
 import hashlib
@@ -18,12 +22,25 @@ import re
 import unicodedata
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from tempfile import SpooledTemporaryFile
 
 logger = logging.getLogger(__name__)
 
 # How much of the body we pull per await. Small enough that an oversized upload
 # is refused after roughly one chunk past the limit, not after the whole body.
 _READ_CHUNK_SIZE = 64 * 1024
+
+# Multipart framing (boundaries, Content-Disposition) sits outside the file
+# bytes. The request-body limit must allow that headroom so a file at exactly
+# MAX_UPLOAD_BYTES is accepted, while still refusing arbitrarily large bodies
+# before Starlette spools them to disk.
+MULTIPART_BODY_OVERHEAD_BYTES = 256 * 1024
+
+
+def max_request_body_bytes(max_upload_bytes: int) -> int:
+    """Ceiling for the raw HTTP body, including multipart overhead."""
+    return max_upload_bytes + MULTIPART_BODY_OVERHEAD_BYTES
+
 
 # extension -> (canonical mime type, accepted client-declared mime types)
 SUPPORTED_TYPES: dict[str, tuple[str, frozenset[str]]] = {
@@ -110,14 +127,19 @@ async def read_upload_bounded(
     """Read an upload in chunks, hashing as we go, stopping at `max_bytes`.
 
     `read` is typically `UploadFile.read`. Raises `FileTooLarge` as soon as one
-    more byte would push the total over the limit; whatever has been buffered
-    is discarded before the exception leaves. An empty body returns
-    ``(b"", <hash of empty>)`` so the caller can raise `EmptyFile`.
+    more byte would push the total over the limit; the spool is discarded before
+    the exception leaves. An empty body returns ``(b"", <hash of empty>)`` so the
+    caller can raise `EmptyFile`.
+
+    Chunks spill to a temporary file once they exceed `chunk_size`, so an
+    accepted near-limit upload is not held twice in memory (chunk list plus a
+    joined copy) the way an unbounded `list[bytes]` + `b"".join` would.
     """
     hasher = hashlib.sha256()
-    parts: list[bytes] = []
     total = 0
-    try:
+    # Context manager keeps ruff happy and always closes the spool, including
+    # on FileTooLarge / interrupted reads.
+    with SpooledTemporaryFile(max_size=chunk_size) as spool:
         while True:
             # Ask for at most one byte past the remaining budget so we can refuse
             # without pulling a full extra chunk into memory.
@@ -126,15 +148,12 @@ async def read_upload_bounded(
             if not chunk:
                 break
             if total + len(chunk) > max_bytes:
-                parts.clear()
                 raise FileTooLarge(f"the uploaded file exceeds {max_bytes} bytes")
             total += len(chunk)
             hasher.update(chunk)
-            parts.append(chunk)
-        return b"".join(parts), hasher.hexdigest()
-    except BaseException:
-        parts.clear()
-        raise
+            spool.write(chunk)
+        spool.seek(0)
+        return spool.read(), hasher.hexdigest()
 
 
 async def receive_upload(
