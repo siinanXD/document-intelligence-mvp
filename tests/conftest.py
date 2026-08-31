@@ -22,6 +22,7 @@ from app.core.settings import get_settings
 from app.main import create_app
 from app.models import Document, DocumentStatus, Tenant
 from app.providers.registry import get_embedding_provider, get_llm_provider
+from app.providers.tracing import get_tracing_adapter
 from tests.db import REQUIRE_DB, TEST_DATABASE_URL
 
 
@@ -33,6 +34,7 @@ def _reset_process_state():
         get_settings.cache_clear()
         get_embedding_provider.cache_clear()
         get_llm_provider.cache_clear()
+        get_tracing_adapter.cache_clear()
         reset_engine()
         reset_qdrant_client()
 

@@ -104,6 +104,13 @@ async def test_ask_answers_with_resolvable_sources(api):
     body = response.json()
     assert body["has_sufficient_evidence"] is True
     assert [source["source_id"] for source in body["sources"]] == [source_ids[0]]
+    assert set(body) == {
+        "answer",
+        "has_sufficient_evidence",
+        "conflicting",
+        "sources",
+        "considered",
+    }
 
     # Every id in the answer resolves through the API, which is the point of it.
     resolved = await http.get(

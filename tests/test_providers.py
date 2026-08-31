@@ -9,11 +9,13 @@ import pytest
 from pydantic import BaseModel
 
 from app.providers.base import EmbeddingProvider, LLMProvider
+from app.providers.generation import GenerationResult
 from app.providers.openai_provider import (
     OpenAIEmbeddingProvider,
     OpenAILLMProvider,
     ProviderResponseError,
 )
+from app.providers.prompts import Prompt
 from app.providers.registry import (
     ProviderConfigurationError,
     get_embedding_provider,
@@ -99,22 +101,25 @@ class _Profile(BaseModel):
 
 
 class _FakeCompletions:
-    def __init__(self, content: str = "answer", parsed=None) -> None:
+    def __init__(self, content: str = "answer", parsed=None, usage=None) -> None:
         self.calls: list[dict] = []
         self._content = content
         self._parsed = parsed
+        self._usage = usage
 
     def _response(self, payload):
         message = type("Message", (), payload)()
-        choice = type("Choice", (), {"message": message})()
-        return type("Response", (), {"choices": [choice]})()
+        choice = type("Choice", (), {"message": message, "finish_reason": "stop"})()
+        return type(
+            "Response", (), {"choices": [choice], "usage": self._usage, "id": "cmpl-test"}
+        )()
 
-    async def create(self, model, messages, **kwargs):
-        self.calls.append({"model": model, "messages": messages})
+    async def create(self, **kwargs):
+        self.calls.append(kwargs)
         return self._response({"content": self._content})
 
-    async def parse(self, model, messages, response_format, **kwargs):
-        self.calls.append({"model": model, "messages": messages, "schema": response_format})
+    async def parse(self, **kwargs):
+        self.calls.append(kwargs)
         return self._response({"parsed": self._parsed})
 
 
@@ -123,11 +128,19 @@ class _FakeChatClient:
         self.chat = type("Chat", (), {"completions": completions})()
 
 
+_TEST_PROMPT = Prompt(name="test_prompt", version="v1", system="sys")
+
+
 async def test_llm_provider_returns_completion_text():
     completions = _FakeCompletions(content="grounded answer")
     provider = OpenAILLMProvider(client=_FakeChatClient(completions))
 
-    assert await provider.complete("sys", "user") == "grounded answer"
+    result = await provider.complete(_TEST_PROMPT, "user")
+
+    assert isinstance(result, GenerationResult)
+    assert result.content == "grounded answer"
+    assert result.prompt_name == "test_prompt"
+    assert result.prompt_version == "v1"
     assert completions.calls[0]["messages"] == [
         {"role": "system", "content": "sys"},
         {"role": "user", "content": "user"},
@@ -137,17 +150,19 @@ async def test_llm_provider_returns_completion_text():
 async def test_llm_provider_returns_empty_string_for_empty_content():
     provider = OpenAILLMProvider(client=_FakeChatClient(_FakeCompletions(content=None)))
 
-    assert await provider.complete("sys", "user") == ""
+    result = await provider.complete(_TEST_PROMPT, "user")
+
+    assert result.content == ""
 
 
 async def test_llm_provider_parses_structured_output():
     completions = _FakeCompletions(parsed=_Profile(title="Contract"))
     provider = OpenAILLMProvider(client=_FakeChatClient(completions))
 
-    result = await provider.complete_structured("sys", "user", _Profile)
+    result = await provider.complete_structured(_TEST_PROMPT, "user", _Profile)
 
-    assert result == _Profile(title="Contract")
-    assert completions.calls[0]["schema"] is _Profile
+    assert result.content == _Profile(title="Contract")
+    assert completions.calls[0]["response_format"] is _Profile
 
 
 def test_llm_provider_exposes_its_identity():
@@ -179,10 +194,75 @@ def test_registry_builds_configured_providers_without_calling_out(monkeypatch):
     assert llm.model == "gpt-4o"
 
 
+async def test_registry_wires_generation_settings_into_the_provider(monkeypatch):
+    captured: dict = {}
+
+    def _capture_client(api_key, **kwargs):
+        captured["api_key"] = api_key
+        captured.update(kwargs)
+        return _FakeChatClient(_FakeCompletions())
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key-not-a-real-secret")
+    monkeypatch.setenv("LLM_TIMEOUT_SECONDS", "12.5")
+    monkeypatch.setenv("LLM_MAX_RETRIES", "1")
+    monkeypatch.setenv("LLM_MAX_OUTPUT_TOKENS", "256")
+    monkeypatch.setenv("LLM_TEMPERATURE", "0")
+    monkeypatch.setenv("LLM_INPUT_USD_PER_MILLION", "0.15")
+    monkeypatch.setenv("LLM_OUTPUT_USD_PER_MILLION", "0.6")
+    monkeypatch.setattr("app.providers.registry.build_openai_client", _capture_client)
+
+    llm = get_llm_provider()
+
+    assert captured["timeout_seconds"] == 12.5
+    assert captured["max_retries"] == 0
+    assert llm._timeout_seconds == 12.5
+    assert llm._max_retries == 1
+    assert llm._max_output_tokens == 256
+    assert llm._temperature == 0.0
+    assert llm._input_usd_per_million == 0.15
+    assert llm._output_usd_per_million == 0.6
+
+
+async def test_generation_call_receives_timeout_tokens_and_temperature():
+    completions = _FakeCompletions(content="ok")
+    provider = OpenAILLMProvider(
+        client=_FakeChatClient(completions),
+        timeout_seconds=9.0,
+        max_output_tokens=77,
+        temperature=0.0,
+    )
+
+    await provider.complete(_TEST_PROMPT, "user")
+
+    call = completions.calls[0]
+    assert call["timeout"] == 9.0
+    assert call["max_tokens"] == 77
+    assert call["temperature"] == 0.0
+    assert call["model"] == "gpt-4o-mini"
+
+
+async def test_structured_generation_call_receives_the_same_bounds():
+    completions = _FakeCompletions(parsed=_Profile(title="X"))
+    provider = OpenAILLMProvider(
+        client=_FakeChatClient(completions),
+        timeout_seconds=9.0,
+        max_output_tokens=77,
+        temperature=0.0,
+    )
+
+    await provider.complete_structured(_TEST_PROMPT, "user", _Profile)
+
+    call = completions.calls[0]
+    assert call["timeout"] == 9.0
+    assert call["max_tokens"] == 77
+    assert call["temperature"] == 0.0
+    assert call["response_format"] is _Profile
+
+
 async def test_structured_output_raises_instead_of_returning_none():
     """A refusal arrives as parsed=None; returning it defers the failure."""
     completions = _FakeCompletions(parsed=None)
     provider = OpenAILLMProvider(client=_FakeChatClient(completions), model="gpt-4o")
 
     with pytest.raises(ProviderResponseError, match="no parsable _Profile"):
-        await provider.complete_structured("sys", "user", _Profile)
+        await provider.complete_structured(_TEST_PROMPT, "user", _Profile)

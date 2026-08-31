@@ -79,3 +79,12 @@ baseline.
 
 A partial reindex of mixed embedding identities can collapse recall (stale
 points occupy top-k). Capture baselines on a fully reindexed corpus.
+
+## Generation evaluation (SIN-74)
+
+SIN-76 records generation metadata on `AskResult.generation` and retrieval
+metadata on `AskResult.retrieval`. `app.evaluation.generation.generation_eval_record`
+projects those into the fields a later generation-quality evaluator should
+persist (case id, prompt name/version, provider/model, tokens, latency, cost,
+cited source ids, finish status, trace id). This package still does not score
+answers, and this milestone does not add a generation golden dataset.
