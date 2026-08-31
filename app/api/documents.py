@@ -15,15 +15,26 @@ from pydantic import BaseModel
 from app.api.dependencies import SessionDep, StorageDep, TenantDep
 from app.core.settings import get_settings
 from app.models import Document
+from app.providers.registry import ProviderConfigurationError, get_embedding_provider
 from app.services import documents as documents_service
 from app.services import lexical
 from app.services import relations as relations_service
+from app.services.deletion import delete_document
 from app.services.ingestion import ingest_upload
+from app.services.reindexing import (
+    NoStoredChunks,
+    ReindexError,
+    ReindexNotFound,
+    reindex_document,
+    reindex_tenant,
+)
 from app.services.uploads import EmptyFile, FileTooLarge, UnsupportedFileType, validate_upload
+from app.services.vector_store import DocumentVectorStore, VectorStoreError, VectorStoreService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+lifecycle_router = APIRouter(tags=["documents"])
 
 
 class DocumentResponse(BaseModel):
@@ -230,3 +241,160 @@ async def list_relations(
         )
         for relation, target in found
     ]
+
+
+@router.delete(
+    "/{document_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    responses={
+        204: {"description": "The document is gone, or was already gone"},
+        404: {"description": "No such document for this tenant"},
+        503: {"description": "The vector store could not complete the delete"},
+    },
+)
+async def remove_document(
+    session: SessionDep,
+    tenant: TenantDep,
+    storage: StorageDep,
+    document_id: uuid.UUID,
+) -> Response:
+    """Idempotent delete: storage, derived rows and both vector collections.
+
+    Another tenant's document is absent, not forbidden. Repeating the call
+    after a successful delete is still 204.
+    """
+    try:
+        outcome = await delete_document(
+            session,
+            storage,
+            tenant_id=tenant.id,
+            document_id=document_id,
+            vector_store=VectorStoreService(),
+            document_vectors=DocumentVectorStore(),
+        )
+    except VectorStoreError as exc:
+        logger.warning(
+            "document delete failed against the vector store",
+            extra={"tenant_id": str(tenant.id), "document_id": str(document_id)},
+        )
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "deletion is temporarily unavailable"
+        ) from exc
+
+    if outcome is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+class ReindexResponse(BaseModel):
+    document_id: uuid.UUID
+    indexed: int
+    stale_before: bool
+
+
+class TenantReindexResponse(BaseModel):
+    tenant_id: uuid.UUID
+    reindexed: int
+    skipped: int
+    failed: int
+
+
+@router.post(
+    "/{document_id}/reindex",
+    response_model=ReindexResponse,
+    responses={
+        404: {"description": "No such document for this tenant"},
+        409: {"description": "The document has no stored derived data to reindex"},
+        503: {"description": "The embedding provider or vector store is unavailable"},
+    },
+)
+async def reindex_one_document(
+    session: SessionDep, tenant: TenantDep, document_id: uuid.UUID
+) -> ReindexResponse:
+    """Rebuild this document's vectors from stored chunks. No re-upload."""
+    try:
+        embeddings = get_embedding_provider()
+    except ProviderConfigurationError as exc:
+        logger.error("reindex unavailable: embedding provider not configured")
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "reindex is not configured"
+        ) from exc
+
+    try:
+        outcome = await reindex_document(
+            session,
+            embeddings,
+            VectorStoreService(),
+            tenant_id=tenant.id,
+            document_id=document_id,
+            document_vectors=DocumentVectorStore(),
+        )
+    except ReindexNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found") from exc
+    except NoStoredChunks as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, "document has no stored chunks") from exc
+    except ReindexError as exc:
+        logger.warning(
+            "reindex failed",
+            extra={"tenant_id": str(tenant.id), "document_id": str(document_id)},
+        )
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "reindex is temporarily unavailable"
+        ) from exc
+    except VectorStoreError as exc:
+        logger.warning(
+            "reindex failed against the vector store",
+            extra={"tenant_id": str(tenant.id), "document_id": str(document_id)},
+        )
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "reindex is temporarily unavailable"
+        ) from exc
+
+    return ReindexResponse(
+        document_id=outcome.document_id,
+        indexed=outcome.indexed,
+        stale_before=outcome.stale_before,
+    )
+
+
+@lifecycle_router.post(
+    "/reindex",
+    response_model=TenantReindexResponse,
+    responses={
+        503: {"description": "The embedding provider or vector store is unavailable"},
+    },
+)
+async def reindex_tenant_documents(session: SessionDep, tenant: TenantDep) -> TenantReindexResponse:
+    """Rebuild vectors for every live document of this tenant."""
+    try:
+        embeddings = get_embedding_provider()
+    except ProviderConfigurationError as exc:
+        logger.error("reindex unavailable: embedding provider not configured")
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "reindex is not configured"
+        ) from exc
+
+    try:
+        outcome = await reindex_tenant(
+            session,
+            embeddings,
+            VectorStoreService(),
+            tenant_id=tenant.id,
+            document_vectors=DocumentVectorStore(),
+        )
+    except VectorStoreError as exc:
+        logger.warning(
+            "tenant reindex failed against the vector store",
+            extra={"tenant_id": str(tenant.id)},
+        )
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "reindex is temporarily unavailable"
+        ) from exc
+
+    return TenantReindexResponse(
+        tenant_id=tenant.id,
+        reindexed=outcome.reindexed,
+        skipped=outcome.skipped,
+        failed=outcome.failed,
+    )

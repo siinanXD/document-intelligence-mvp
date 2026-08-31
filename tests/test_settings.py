@@ -30,8 +30,13 @@ def test_dependency_settings_read_environment(monkeypatch):
     assert settings.qdrant_collection == "custom_chunks"
 
 
-def test_credentials_default_to_unset():
-    settings = get_settings()
+def test_credentials_default_to_unset(monkeypatch):
+    """Defaults, not whatever happens to be in a local .env."""
+    from app.core.settings import Settings
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+    settings = Settings(_env_file=None)
 
     assert settings.openai_api_key is None
     assert settings.qdrant_api_key is None

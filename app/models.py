@@ -128,6 +128,7 @@ class Document(Base):
     embedding_provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
     embedding_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
     embedding_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    embedding_dimensions: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = _updated_at()
@@ -159,6 +160,10 @@ class Document(Base):
         CheckConstraint(
             "content_hash IS NULL OR char_length(content_hash) = 64",
             name="ck_documents_content_hash_sha256",
+        ),
+        CheckConstraint(
+            "embedding_dimensions IS NULL OR embedding_dimensions > 0",
+            name="ck_documents_embedding_dimensions_positive",
         ),
     )
 

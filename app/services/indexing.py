@@ -31,6 +31,27 @@ class IndexingOutcome:
     chunk_vectors: list[list[float]] = field(default_factory=list)
 
 
+def is_current_embedding(document: Document, embeddings: EmbeddingProvider) -> bool:
+    """Whether this document's stored vectors belong to `embeddings`' space.
+
+    A mismatch is a stale index, not a permission decision: search must not
+    treat those points as comparable to a query embedded by a different model.
+    Dimensions are part of the identity because two spaces of equal width are
+    still incompatible if the model that produced them changed.
+    """
+    if (
+        document.embedding_provider != embeddings.provider
+        or document.embedding_model != embeddings.model
+        or document.embedding_version != embeddings.version
+    ):
+        return False
+    if document.embedding_dimensions is None:
+        # Indexed before dimensions were persisted. Provider/model/version
+        # still have to match; the collection-size check is the other gate.
+        return True
+    return document.embedding_dimensions == embeddings.dimensions
+
+
 async def index_document(
     session: AsyncSession,
     embeddings: EmbeddingProvider,
@@ -121,3 +142,4 @@ def _record_provider(document: Document, embeddings: EmbeddingProvider) -> None:
     document.embedding_provider = embeddings.provider
     document.embedding_model = embeddings.model
     document.embedding_version = embeddings.version
+    document.embedding_dimensions = embeddings.dimensions
