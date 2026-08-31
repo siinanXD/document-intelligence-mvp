@@ -76,6 +76,13 @@ async def process_job(
     if document is None:
         raise ParsingError("the job's document no longer exists")
 
+    if document.deleted_at is not None:
+        logger.info(
+            "skipping deleted document",
+            extra={"tenant_id": str(document.tenant_id), "document_id": str(document.id)},
+        )
+        return ProcessingOutcome(document_id=document.id, chunk_count=0, content_duplicate_of=None)
+
     document.status = DocumentStatus.processing
     await session.flush()
 

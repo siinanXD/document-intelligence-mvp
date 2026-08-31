@@ -260,3 +260,19 @@ async def test_the_parser_receives_the_stored_bytes(
 
     assert parser.calls[0]["size"] == len(b"%PDF-1.7 exact bytes")
     assert parser.calls[0]["mime_type"] == "application/pdf"
+
+
+async def test_a_deleted_document_is_not_processed(
+    db_session, storage, parser, tenant, make_document
+):
+    from datetime import UTC, datetime
+
+    document, job = await _queued(db_session, storage, tenant, make_document)
+    document.deleted_at = datetime.now(UTC)
+    await db_session.flush()
+
+    outcome = await process_job(db_session, storage, parser, job=job)
+
+    assert outcome.chunk_count == 0
+    assert parser.calls == []
+    assert document.status is not DocumentStatus.ready
