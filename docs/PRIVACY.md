@@ -149,3 +149,21 @@ it is stored on a job or written to a log.
 This is identification, not authentication: `X-Tenant-Id` names the tenant.
 Real credentials are a later hardening step; until then the header is trusted
 and must not be treated as a secret in logs either — only as an identifier.
+
+## Generation traces
+
+Production-safe generation and retrieval traces carry identifiers and
+measurements (`tenant_id`, `request_id` / `job_id`, `prompt_name`,
+`prompt_version`, provider, model, token counts, latency, cost, source ids and
+ranks). They do not, by default, carry:
+
+* document or chunk bodies
+* complete prompts
+* user questions
+* model answers
+* Authorization headers, API keys, cookies or uploaded bytes
+
+`TRACING_CAPTURE_CONTENT` is a separate, development-only switch that may
+include prompts and model output in traces. It is off by default. `LOG_LEVEL`,
+`ENVIRONMENT=local` and any other debug-shaped flag do not enable it. Do not
+turn it on in production. See [`docs/GENERATION.md`](GENERATION.md).

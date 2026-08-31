@@ -47,8 +47,18 @@ def get_llm_provider() -> LLMProvider:
         if not settings.openai_api_key:
             raise ProviderConfigurationError("OPENAI_API_KEY is not configured")
         return OpenAILLMProvider(
-            client=build_openai_client(settings.openai_api_key),
+            client=build_openai_client(
+                settings.openai_api_key,
+                timeout_seconds=settings.llm_timeout_seconds,
+                max_retries=0,
+            ),
             model=settings.llm_model,
+            timeout_seconds=settings.llm_timeout_seconds,
+            max_retries=settings.llm_max_retries,
+            max_output_tokens=settings.llm_max_output_tokens,
+            temperature=settings.llm_temperature,
+            input_usd_per_million=settings.llm_input_usd_per_million,
+            output_usd_per_million=settings.llm_output_usd_per_million,
         )
     raise ProviderConfigurationError(f"unsupported LLM provider: {settings.llm_provider}")
 

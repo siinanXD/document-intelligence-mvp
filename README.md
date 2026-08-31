@@ -204,6 +204,14 @@ python -m app.evaluation --embeddings live      # opt-in; never ordinary CI
 See [`docs/EVALUATION.md`](docs/EVALUATION.md). The golden corpus is synthetic
 and contains no customer documents. Cross-tenant leakage must be zero.
 
+### Generation controls and tracing
+
+Every LLM call has an explicit timeout, retry budget, `max_tokens` cap and
+`temperature=0`. Completions return a provider-neutral envelope (tokens, cost
+when priced, prompt name/version, latency, trace/request id). Tracing is
+optional and fail-open; Langfuse is `pip install -e ".[observability]"` and is
+not required for requests to work. See [`docs/GENERATION.md`](docs/GENERATION.md).
+
 ### Migrations
 
 ```bash
@@ -244,7 +252,7 @@ app/
   worker.py     the ingestion worker: python -m app.worker
 migrations/     Alembic environment and revisions
 tests/          pytest suite; every external call is mocked
-docs/           workflow, privacy and evaluation notes
+docs/           workflow, privacy, evaluation and generation notes
 ```
 
 Layering: `api -> services -> providers`. Routes never reach Qdrant, object

@@ -10,6 +10,7 @@ import pytest_asyncio
 from qdrant_client import AsyncQdrantClient
 
 from app.models import Chunk
+from app.providers.generation import generation_from_prompt
 from app.services.indexing import index_document
 from app.services.qa import NO_EVIDENCE, GroundedAnswer, ask, build_context
 from app.services.retrieval import SearchHit
@@ -31,12 +32,14 @@ class _FakeLLM:
         )
         self.calls: list[dict] = []
 
-    async def complete(self, system: str, user: str) -> str:
+    async def complete(self, prompt, user: str) -> str:
         raise AssertionError("grounded answering must use the structured path")
 
-    async def complete_structured(self, system: str, user: str, schema):
-        self.calls.append({"system": system, "user": user, "schema": schema})
-        return self.answer
+    async def complete_structured(self, prompt, user: str, schema):
+        self.calls.append(
+            {"system": prompt.system, "user": user, "schema": schema, "prompt": prompt}
+        )
+        return generation_from_prompt(self.answer, prompt, provider=self.provider, model=self.model)
 
 
 @pytest_asyncio.fixture
@@ -108,6 +111,14 @@ async def test_an_answer_cites_the_sources_it_used(
     assert result.has_sufficient_evidence is True
     assert [hit.source_id for hit in result.sources] == [payment_source]
     assert result.sources[0].page_number == 1
+    assert result.generation is not None
+    assert result.generation.prompt_name == "ask_grounded"
+    assert result.generation.prompt_version == "v1"
+    assert result.retrieval is not None
+    assert result.retrieval.mode == "semantic"
+    assert result.retrieval.supplied_count >= 1
+    assert result.retrieval.sources[0].rank == 1
+    assert not any(hasattr(source, "text") for source in result.retrieval.sources)
 
 
 async def test_a_cited_source_that_was_never_supplied_is_dropped(

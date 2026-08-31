@@ -17,21 +17,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Chunk, Document, DocumentProfile
 from app.providers.base import LLMProvider
+from app.providers.prompts import DOCUMENT_PROFILE
 
 logger = logging.getLogger(__name__)
-
-SYSTEM_PROMPT = """\
-You describe a document from an excerpt of its own text.
-
-Rules:
-- Record only what the text states. Never infer, complete or normalise beyond \
-what is written.
-- Leave a field null, or a list empty, when the text does not supply it. An \
-empty answer is correct and expected; a plausible guess is not.
-- Copy names, identifiers and dates exactly as they appear.
-- `document_type` is a short lowercase noun phrase, e.g. "invoice", \
-"service agreement", "meeting minutes".
-- `language` is an ISO 639-1 code for the language the document is written in."""
 
 
 class ExtractedProfile(BaseModel):
@@ -133,9 +121,10 @@ async def profile_document(
     else:
         excerpt = build_excerpt(texts, max_characters=max_excerpt_characters)
         try:
-            extracted = await llm.complete_structured(
-                SYSTEM_PROMPT, f"Document text:\n\n{excerpt}", ExtractedProfile
+            generation = await llm.complete_structured(
+                DOCUMENT_PROFILE, f"Document text:\n\n{excerpt}", ExtractedProfile
             )
+            extracted = generation.content
         except Exception as exc:
             # The provider's message can quote the text it was given.
             raise ProfilingError(f"profile extraction failed ({type(exc).__name__})") from None

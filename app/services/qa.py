@@ -22,24 +22,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.providers.base import EmbeddingProvider, LLMProvider
+from app.providers.generation import GenerationResult, RetrievalSourceTrace, RetrievalTrace
+from app.providers.prompts import ASK_GROUNDED
+from app.providers.tracing import get_tracing_adapter
 from app.services.retrieval import SearchHit, search
 from app.services.vector_store import VectorStoreService
 
 logger = logging.getLogger(__name__)
-
-SYSTEM_PROMPT = """\
-You answer questions about documents using only the numbered sources given to \
-you.
-
-Rules:
-- Use only what the sources say. Never add facts from your own knowledge, and \
-never infer beyond what is written.
-- Cite the source id of every passage you actually used.
-- If the sources do not answer the question, set has_sufficient_evidence to \
-false and say plainly what is missing. Do not guess.
-- If two sources disagree, report both positions and say they conflict. Do not \
-reconcile them, average them, or pick one silently.
-- Quote sparingly and answer in the language of the question."""
 
 
 class GroundedAnswer(BaseModel):
@@ -63,6 +52,8 @@ class AskResult:
     conflicting: bool
     sources: list[SearchHit] = field(default_factory=list)
     considered: int = 0
+    generation: GenerationResult | None = None
+    retrieval: RetrievalTrace | None = None
 
 
 NO_EVIDENCE = "There is nothing in the available documents that answers this question."
@@ -116,10 +107,18 @@ async def ask(
         # Nothing retrieved is not a question for the model: there is nothing
         # to ground an answer in, and asking anyway invites invention.
         logger.info("ask found no passages", extra={"tenant_id": str(tenant_id), "considered": 0})
-        return AskResult(answer=NO_EVIDENCE, has_sufficient_evidence=False, conflicting=False)
+        retrieval = RetrievalTrace(mode="semantic", candidate_count=0, supplied_count=0)
+        await _emit_retrieval(retrieval, tenant_id=tenant_id)
+        return AskResult(
+            answer=NO_EVIDENCE,
+            has_sufficient_evidence=False,
+            conflicting=False,
+            retrieval=retrieval,
+        )
 
     user_prompt = f"Sources:\n\n{build_context(hits)}\n\nQuestion: {question}"
-    result = await llm.complete_structured(SYSTEM_PROMPT, user_prompt, GroundedAnswer)
+    generation = await llm.complete_structured(ASK_GROUNDED, user_prompt, GroundedAnswer)
+    result = generation.content
 
     # A model may cite an id it was never given. Keep only the ones that were,
     # so every id in the response resolves to a real passage.
@@ -132,6 +131,9 @@ async def ask(
             extra={"tenant_id": str(tenant_id), "dropped": invented},
         )
 
+    retrieval = _retrieval_trace(hits)
+    await _emit_retrieval(retrieval, tenant_id=tenant_id)
+
     # Log identifiers and counts. Never the question, the passages or the answer.
     logger.info(
         "ask answered",
@@ -140,6 +142,9 @@ async def ask(
             "considered": len(hits),
             "cited": len(cited),
             "sufficient": result.has_sufficient_evidence,
+            "prompt_name": generation.prompt_name,
+            "prompt_version": generation.prompt_version,
+            "trace_id": generation.trace_id,
         },
     )
 
@@ -149,4 +154,33 @@ async def ask(
         conflicting=result.conflicting,
         sources=cited,
         considered=len(hits),
+        generation=generation,
+        retrieval=retrieval,
     )
+
+
+def _retrieval_trace(hits: list[SearchHit]) -> RetrievalTrace:
+    return RetrievalTrace(
+        mode="semantic",
+        candidate_count=len(hits),
+        supplied_count=len(hits),
+        sources=tuple(
+            RetrievalSourceTrace(
+                source_id=hit.source_id,
+                document_id=str(hit.document_id),
+                rank=rank,
+                score=hit.score,
+            )
+            for rank, hit in enumerate(hits, start=1)
+        ),
+    )
+
+
+async def _emit_retrieval(retrieval: RetrievalTrace, *, tenant_id) -> None:
+    try:
+        await get_tracing_adapter().record_retrieval(retrieval, extra={"tenant_id": str(tenant_id)})
+    except Exception as exc:
+        logger.warning(
+            "retrieval tracing failed",
+            extra={"error_type": type(exc).__name__},
+        )

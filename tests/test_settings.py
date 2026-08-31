@@ -42,6 +42,20 @@ def test_credentials_default_to_unset(monkeypatch):
     assert settings.qdrant_api_key is None
 
 
+def test_generation_controls_default_to_bounded_deterministic_values():
+    from app.core.settings import Settings
+
+    settings = Settings(_env_file=None)
+
+    assert settings.llm_timeout_seconds == 30.0
+    assert settings.llm_max_retries == 2
+    assert settings.llm_max_output_tokens == 1024
+    assert settings.llm_temperature == 0.0
+    assert settings.llm_input_usd_per_million is None
+    assert settings.tracing_capture_content is False
+    assert settings.tracing_provider == "none"
+
+
 def test_qdrant_timeout_is_whole_seconds_and_never_zero():
     """int(0.5) would be 0, which the Qdrant client reads as no timeout."""
     import pytest

@@ -17,6 +17,8 @@ import uuid
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from app.core.correlation import bind_request_id, reset_request_id
+
 logger = logging.getLogger("app.audit")
 
 # Tests replace this to observe extras without depending on logging config.
@@ -68,6 +70,7 @@ class RequestLoggingMiddleware:
         started = time.perf_counter()
         status_code = 500
         error_type: str | None = None
+        request_token = bind_request_id(request_id)
 
         async def send_wrapper(message: dict) -> None:
             nonlocal status_code
@@ -83,6 +86,7 @@ class RequestLoggingMiddleware:
             error_type = type(exc).__name__
             raise
         finally:
+            reset_request_id(request_token)
             if path not in _SKIP_PATHS:
                 extra: dict[str, object] = {
                     "request_id": request_id,

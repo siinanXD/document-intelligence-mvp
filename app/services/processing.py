@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.correlation import bind_job_context, reset_job_context
 from app.models import Chunk, Document, DocumentStatus, IngestionJob
 from app.providers.base import EmbeddingProvider, LLMProvider
 from app.providers.parsing import DocumentParser, ParsingError
@@ -62,6 +63,33 @@ async def process_job(
     Raises ParsingError or ObjectNotFoundError for the caller to record as a
     retryable failure; anything else propagates unchanged.
     """
+    tokens = bind_job_context(job_id=str(job.id), document_id=str(job.document_id))
+    try:
+        return await _process_job(
+            session,
+            storage,
+            parser,
+            job=job,
+            embeddings=embeddings,
+            vector_store=vector_store,
+            llm=llm,
+            document_vectors=document_vectors,
+        )
+    finally:
+        reset_job_context(tokens)
+
+
+async def _process_job(
+    session: AsyncSession,
+    storage: StorageBackend,
+    parser: DocumentParser,
+    *,
+    job: IngestionJob,
+    embeddings: EmbeddingProvider | None = None,
+    vector_store: VectorStoreService | None = None,
+    llm: LLMProvider | None = None,
+    document_vectors: DocumentVectorStore | None = None,
+) -> ProcessingOutcome:
     document = (
         (
             await session.execute(

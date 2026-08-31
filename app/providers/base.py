@@ -10,6 +10,9 @@ from typing import TypeVar
 
 from pydantic import BaseModel
 
+from app.providers.generation import GenerationResult
+from app.providers.prompts import Prompt
+
 SchemaT = TypeVar("SchemaT", bound=BaseModel)
 
 
@@ -60,13 +63,16 @@ class LLMProvider(ABC):
         """Model identifier used for completions."""
 
     @abstractmethod
-    async def complete(self, system: str, user: str) -> str:
-        """Return a plain-text completion."""
+    async def complete(self, prompt: Prompt, user: str) -> GenerationResult[str]:
+        """Return a plain-text completion with generation metadata."""
 
     @abstractmethod
-    async def complete_structured(self, system: str, user: str, schema: type[SchemaT]) -> SchemaT:
-        """Return a completion parsed into `schema`.
+    async def complete_structured(
+        self, prompt: Prompt, user: str, schema: type[SchemaT]
+    ) -> GenerationResult[SchemaT]:
+        """Return a completion parsed into `schema`, with generation metadata.
 
         Implementations must not invent values: fields without grounded
-        evidence stay null or empty.
+        evidence stay null or empty. Structured content stays on
+        `GenerationResult.content`; it is not flattened to a string.
         """

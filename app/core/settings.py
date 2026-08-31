@@ -46,6 +46,32 @@ class Settings(BaseSettings):
     llm_provider: Literal["openai"] = "openai"
     llm_model: str = "gpt-4o-mini"
     openai_api_key: str | None = None
+    # Generation controls. These are explicit so a vendor SDK default cannot
+    # silently change timeout, retries or sampling under us.
+    llm_timeout_seconds: float = Field(default=30.0, gt=0)
+    # Additional attempts after the first. The OpenAI client is constructed
+    # with max_retries=0 so application retries do not stack on SDK retries.
+    llm_max_retries: int = Field(default=2, ge=0)
+    llm_max_output_tokens: int = Field(default=1024, ge=1)
+    # 0.0 is intentional: grounded answers and profiles must be reproducible.
+    # top_p, seed and frequency/presence penalties are not sent; gpt-4o-mini
+    # accepts temperature, and we do not pretend to set unsupported knobs.
+    llm_temperature: float = Field(default=0.0, ge=0.0, le=2.0)
+    # USD per 1 million tokens. Unset means estimated_cost_usd stays None,
+    # never 0.0. Prices are configured, not guessed from a vendor price list.
+    llm_input_usd_per_million: float | None = Field(default=None, ge=0.0)
+    llm_output_usd_per_million: float | None = Field(default=None, ge=0.0)
+
+    # --- Observability ---
+    # Requests must work with tracing off. Langfuse is optional.
+    tracing_provider: Literal["none", "langfuse"] = "none"
+    # Development-only: include prompts and model output in traces. Off by
+    # default. Unrelated debug flags must never turn this on.
+    tracing_capture_content: bool = False
+    langfuse_public_key: str | None = None
+    langfuse_secret_key: str | None = None
+    langfuse_host: str | None = None
+    langfuse_base_url: str | None = None
 
     # --- Object storage ---
     storage_backend: Literal["local", "s3"] = "local"

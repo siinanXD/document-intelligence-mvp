@@ -6,8 +6,11 @@ and assert only that the call paths the providers use still exist. No request
 is made, so they are safe in CI.
 """
 
+import inspect
+
 import pytest
 from openai import AsyncOpenAI
+from openai.resources.chat.completions import AsyncCompletions
 from qdrant_client import AsyncQdrantClient
 
 
@@ -41,3 +44,19 @@ def test_qdrant_client_exposes_the_methods_the_service_calls(name):
     client = AsyncQdrantClient(url="http://127.0.0.1:1", timeout=1, check_compatibility=False)
 
     assert hasattr(client, name), f"qdrant-client no longer exposes {name}"
+
+
+def test_openai_completion_paths_accept_timeout_and_sampling_bounds():
+    """SIN-76 sends timeout, max_tokens and temperature on every generation call."""
+    for method in (AsyncCompletions.create, AsyncCompletions.parse):
+        names = inspect.signature(method).parameters
+        assert "timeout" in names
+        assert "max_tokens" in names
+        assert "temperature" in names
+
+
+def test_openai_client_accepts_timeout_and_disables_sdk_retries():
+    client = AsyncOpenAI(api_key="dummy-key-no-request-is-made", timeout=30.0, max_retries=0)
+
+    assert client.max_retries == 0
+    assert client.timeout is not None

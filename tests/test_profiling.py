@@ -9,6 +9,7 @@ import pytest_asyncio
 from sqlalchemy import select
 
 from app.models import Chunk, DocumentProfile
+from app.providers.generation import generation_from_prompt
 from app.services.profiling import (
     ExtractedProfile,
     ProfilingError,
@@ -26,14 +27,16 @@ class _FakeLLM:
         self.error = error
         self.calls: list[dict] = []
 
-    async def complete(self, system, user):
+    async def complete(self, prompt, user):
         raise AssertionError("profiling must use the structured path")
 
-    async def complete_structured(self, system, user, schema):
-        self.calls.append({"system": system, "user": user})
+    async def complete_structured(self, prompt, user, schema):
+        self.calls.append({"system": prompt.system, "user": user, "prompt": prompt})
         if self.error:
             raise self.error
-        return self.profile
+        return generation_from_prompt(
+            self.profile, prompt, provider=self.provider, model=self.model
+        )
 
 
 @pytest_asyncio.fixture
