@@ -1,4 +1,6 @@
 {
+  "$schema": "https://www.cursor.com/schemas/environment.schema.json",
+  "name": "document-intelligence-mvp",
   "build": {
     "dockerfile": "Dockerfile",
     "context": ".."
