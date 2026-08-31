@@ -23,6 +23,13 @@ done
 
 docker compose exec -T postgres pg_isready -U postgres -d document_intelligence >/dev/null
 
+# The test suite defaults to a separate database. Create it once per fresh
+# Cloud Agent VM; repeated starts leave it untouched.
+if ! docker compose exec -T postgres psql -U postgres -tAc \
+  "SELECT 1 FROM pg_database WHERE datname='document_intelligence_test'" | grep -q 1; then
+  docker compose exec -T postgres createdb -U postgres document_intelligence_test
+fi
+
 for _ in $(seq 1 60); do
   if curl --fail --silent http://127.0.0.1:6333/collections >/dev/null 2>&1; then
     break
