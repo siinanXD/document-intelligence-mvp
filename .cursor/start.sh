@@ -39,6 +39,10 @@ done
 
 curl --fail --silent http://127.0.0.1:6333/collections >/dev/null
 
+# Cloud bootstrap must never migrate a database supplied through Cursor Secrets
+# or a persisted .env. Pin only this startup migration to the local Compose DB.
+# An explicit deployment task owns migrations against staging/production.
 # shellcheck disable=SC1091
 source .venv/bin/activate
-alembic upgrade head
+env DATABASE_URL="postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/document_intelligence" \
+  alembic upgrade head
