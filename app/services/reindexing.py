@@ -25,6 +25,14 @@ class ReindexError(RuntimeError):
     """The document cannot be reindexed from stored derived data."""
 
 
+class ReindexNotFound(ReindexError):
+    """No live document for this tenant."""
+
+
+class NoStoredChunks(ReindexError):
+    """The document has no derived chunks to embed."""
+
+
 @dataclass(frozen=True)
 class ReindexOutcome:
     document_id: object
@@ -59,20 +67,27 @@ async def reindex_document(
     document = (
         (
             await session.execute(
-                select(Document).where(
+                select(Document)
+                .where(
                     Document.id == document_id,
                     Document.tenant_id == tenant_id,
                     Document.deleted_at.is_(None),
                 )
+                .with_for_update()
             )
         )
         .scalars()
         .first()
     )
     if document is None:
-        raise ReindexError("the document to reindex no longer exists")
+        raise ReindexNotFound("the document to reindex no longer exists")
 
     stale_before = not is_current_embedding(document, embeddings)
+
+    if document_vectors is not None:
+        # Fail closed on an incompatible document-vector collection before
+        # rewriting chunk points, so a 503 cannot leave Qdrant ahead of Postgres.
+        await document_vectors.ensure_collection(dimensions=embeddings.dimensions)
 
     try:
         outcome = await index_document(
@@ -86,7 +101,7 @@ async def reindex_document(
         raise ReindexError(str(exc)) from None
 
     if outcome.indexed == 0:
-        raise ReindexError("the document has no stored chunks to reindex")
+        raise NoStoredChunks("the document has no stored chunks to reindex")
 
     if document_vectors is not None:
         strategy = get_document_vector_strategy()
@@ -124,8 +139,10 @@ async def reindex_tenant(
     """Rebuild vectors for every live, ready document of one tenant.
 
     Documents without stored chunks are skipped, not failed: they were never
-    indexed and reindexing cannot invent chunks. A dimension mismatch fails
-    closed on the first document rather than mixing spaces.
+    indexed and reindexing cannot invent chunks. A provider or indexing
+    failure is counted as failed so an operator is not told the corpus is
+    current. A dimension mismatch fails closed on the first document rather
+    than mixing spaces.
     """
     documents = list(
         (
@@ -156,7 +173,7 @@ async def reindex_tenant(
                     document_vectors=document_vectors,
                 )
             )
-        except ReindexError:
+        except NoStoredChunks:
             skipped += 1
             logger.info(
                 "document skipped during tenant reindex",
@@ -169,6 +186,16 @@ async def reindex_tenant(
             # An incompatible collection cannot be repaired per-document; stop
             # rather than leaving a mix of old and new spaces.
             raise
+        except ReindexError as exc:
+            failed += 1
+            logger.warning(
+                "document failed during tenant reindex",
+                extra={
+                    "tenant_id": str(tenant_id),
+                    "document_id": str(document.id),
+                    "error_type": type(exc).__name__,
+                },
+            )
         except Exception as exc:
             failed += 1
             logger.warning(

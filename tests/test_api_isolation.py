@@ -272,3 +272,41 @@ async def test_the_owner_can_reindex_without_reuploading(isolated):
     tenant = await http.post("/reindex", headers=headers)
     assert tenant.status_code == 200
     assert tenant.json()["reindexed"] >= 1
+
+
+async def test_another_tenant_cannot_reindex_it(isolated):
+    response = await isolated["http"].post(
+        f"/documents/{isolated['document'].id}/reindex",
+        headers=_headers(isolated["outsider"]),
+    )
+
+    assert response.status_code == 404
+    assert SECRET not in response.text
+
+
+async def test_a_soft_deleted_document_cannot_be_reindexed(isolated):
+    http, owner, document = isolated["http"], isolated["owner"], isolated["document"]
+    headers = _headers(owner)
+    deleted = await http.delete(f"/documents/{document.id}", headers=headers)
+    assert deleted.status_code == 204
+
+    response = await http.post(f"/documents/{document.id}/reindex", headers=headers)
+
+    assert response.status_code == 404
+    assert SECRET not in response.text
+
+
+async def test_reindex_reports_a_provider_outage_as_unavailable(isolated, monkeypatch):
+    class _Down(_FakeEmbeddings):
+        async def embed(self, texts: list[str]) -> list[list[float]]:
+            raise RuntimeError("APIError")
+
+    monkeypatch.setattr("app.api.documents.get_embedding_provider", lambda: _Down())
+
+    response = await isolated["http"].post(
+        f"/documents/{isolated['document'].id}/reindex",
+        headers=_headers(isolated["owner"]),
+    )
+
+    assert response.status_code == 503
+    assert "no stored chunks" not in response.text.lower()

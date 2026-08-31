@@ -40,11 +40,17 @@ async def delete_document(
     Returns None when no such document exists for this tenant - including when
     the id belongs to someone else. A second call for a document this tenant
     already deleted still runs leftover cleanup and returns success.
+
+    The row is locked before any storage or index work. An in-flight worker
+    that already holds the document either finishes first - this then removes
+    whatever it wrote - or waits and then sees `deleted_at` and skips.
     """
     document = (
         (
             await session.execute(
-                select(Document).where(Document.id == document_id, Document.tenant_id == tenant_id)
+                select(Document)
+                .where(Document.id == document_id, Document.tenant_id == tenant_id)
+                .with_for_update()
             )
         )
         .scalars()

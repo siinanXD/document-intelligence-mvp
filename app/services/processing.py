@@ -65,9 +65,9 @@ async def process_job(
     document = (
         (
             await session.execute(
-                select(Document).where(
-                    Document.id == job.document_id, Document.tenant_id == job.tenant_id
-                )
+                select(Document)
+                .where(Document.id == job.document_id, Document.tenant_id == job.tenant_id)
+                .with_for_update()
             )
         )
         .scalars()
@@ -76,6 +76,8 @@ async def process_job(
     if document is None:
         raise ParsingError("the job's document no longer exists")
 
+    # After the lock: a delete that committed first is visible here, and a
+    # delete that arrives while we parse will wait for this transaction.
     if document.deleted_at is not None:
         logger.info(
             "skipping deleted document",

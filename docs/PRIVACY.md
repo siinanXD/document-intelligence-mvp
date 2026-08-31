@@ -70,6 +70,18 @@ A delete removes or makes inaccessible:
 The document row is soft-deleted (`deleted_at`). Live list/get/search/ask
 paths ignore it. The original hash may be uploaded again.
 
+The document row is locked (`SELECT ... FOR UPDATE`) before any storage or
+index work, and the ingestion worker takes the same lock before it writes
+derived data. Whichever transaction commits first, the other then sees the
+truth: the worker skips a deleted document, or the deleter waits and then
+removes the worker's freshly committed chunks, profile, relations, artifact
+and vectors. A second `DELETE` is still idempotent leftover cleanup.
+
+Object storage and Qdrant are cleaned before the request session commits. If
+that commit then fails, the client gets an error (not a false 204) and the
+row stays live while its artifacts are already gone. A retried delete
+converges: both storage backends treat a missing object as success.
+
 Deletion does not by itself purge database backups, object-store versioning, or
 Qdrant snapshots. Those follow the backup retention of the environment they
 run in.
@@ -86,7 +98,9 @@ nothing to embed. That case needs the ingestion worker, which still has the
 original object and the normalized artifact.
 
 The tenant-level path walks that tenant's live ready documents and skips ones
-without chunks. It does not touch another tenant's vectors.
+without chunks (`skipped`). A provider or indexing failure is counted as
+`failed`, not skipped, and a single-document reindex of that case is 503
+rather than 409. It does not touch another tenant's vectors.
 
 ## Embedding identity and vector spaces
 
@@ -98,8 +112,12 @@ spaces; the collection has to be recreated and documents reindexed.
 Provider, model, version and dimensions are persisted on each document.
 Semantic search hydrates hits from PostgreSQL and drops any whose stored
 identity does not match the current provider, so a model change cannot return
-stale points as if they were comparable. After changing the embedding model,
-run the tenant reindex (or recreate the collection if the size also changed).
+stale points as if they were comparable. Leftover stale Qdrant points still
+occupy the search top-k until reindex finishes, so a partial (or aborted)
+same-width model change can yield empty search results even though current
+chunks exist. After changing the embedding model, run the tenant reindex (or
+recreate the collection if the size also changed) before treating recall as
+representative.
 
 ## Logging and privacy
 

@@ -6,7 +6,13 @@ from qdrant_client import AsyncQdrantClient
 
 from app.models import Chunk, DocumentStatus
 from app.services.indexing import index_document, is_current_embedding
-from app.services.reindexing import ReindexError, reindex_document, reindex_tenant
+from app.services.reindexing import (
+    NoStoredChunks,
+    ReindexError,
+    ReindexNotFound,
+    reindex_document,
+    reindex_tenant,
+)
 from app.services.retrieval import search
 from app.services.vector_store import DocumentVectorStore, VectorStoreService
 from tests.test_indexing import _FakeEmbeddings
@@ -135,7 +141,7 @@ async def test_reindex_of_another_tenants_document_is_absent(
         db_session, _FakeEmbeddings(), chunk_store, tenant_id=tenant.id, document_id=document.id
     )
 
-    with pytest.raises(ReindexError):
+    with pytest.raises(ReindexNotFound):
         await reindex_document(
             db_session,
             _FakeEmbeddings(),
@@ -149,7 +155,7 @@ async def test_reindex_without_chunks_is_an_error(db_session, stores, tenant, ma
     chunk_store, _ = stores
     document = await make_document(tenant, status=DocumentStatus.ready)
 
-    with pytest.raises(ReindexError, match="no stored chunks"):
+    with pytest.raises(NoStoredChunks, match="no stored chunks"):
         await reindex_document(
             db_session, _FakeEmbeddings(), chunk_store, tenant_id=tenant.id, document_id=document.id
         )
@@ -199,3 +205,52 @@ async def test_tenant_reindex_rebuilds_only_that_tenants_documents(
     )
     assert [hit.document_id for hit in mine_hits] == [mine.id]
     assert [hit.document_id for hit in their_hits] == [theirs.id]
+
+
+async def test_tenant_reindex_counts_a_provider_outage_as_failed(
+    db_session, stores, tenant, make_document
+):
+    chunk_store, document_store = stores
+    document = await _ready_document(
+        db_session, tenant, make_document, ["Payment is due within thirty days."]
+    )
+    await index_document(
+        db_session, _FakeEmbeddings(), chunk_store, tenant_id=tenant.id, document_id=document.id
+    )
+
+    class _Down(_FakeEmbeddings):
+        async def embed(self, texts: list[str]) -> list[list[float]]:
+            raise RuntimeError("APIError")
+
+    outcome = await reindex_tenant(
+        db_session,
+        _Down(),
+        chunk_store,
+        tenant_id=tenant.id,
+        document_vectors=document_store,
+    )
+
+    assert outcome.reindexed == 0
+    assert outcome.skipped == 0
+    assert outcome.failed == 1
+
+
+async def test_reindex_surfaces_a_provider_outage_as_reindex_error(
+    db_session, stores, tenant, make_document
+):
+    chunk_store, _ = stores
+    document = await _ready_document(
+        db_session, tenant, make_document, ["Payment is due within thirty days."]
+    )
+    await index_document(
+        db_session, _FakeEmbeddings(), chunk_store, tenant_id=tenant.id, document_id=document.id
+    )
+
+    class _Down(_FakeEmbeddings):
+        async def embed(self, texts: list[str]) -> list[list[float]]:
+            raise RuntimeError("APIError")
+
+    with pytest.raises(ReindexError, match="embedding failed"):
+        await reindex_document(
+            db_session, _Down(), chunk_store, tenant_id=tenant.id, document_id=document.id
+        )

@@ -21,7 +21,13 @@ from app.services import lexical
 from app.services import relations as relations_service
 from app.services.deletion import delete_document
 from app.services.ingestion import ingest_upload
-from app.services.reindexing import ReindexError, reindex_document, reindex_tenant
+from app.services.reindexing import (
+    NoStoredChunks,
+    ReindexError,
+    ReindexNotFound,
+    reindex_document,
+    reindex_tenant,
+)
 from app.services.uploads import EmptyFile, FileTooLarge, UnsupportedFileType, validate_upload
 from app.services.vector_store import DocumentVectorStore, VectorStoreError, VectorStoreService
 
@@ -324,11 +330,18 @@ async def reindex_one_document(
             document_id=document_id,
             document_vectors=DocumentVectorStore(),
         )
-    except ReindexError as exc:
-        message = str(exc)
-        if "no longer exists" in message:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found") from exc
+    except ReindexNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found") from exc
+    except NoStoredChunks as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, "document has no stored chunks") from exc
+    except ReindexError as exc:
+        logger.warning(
+            "reindex failed",
+            extra={"tenant_id": str(tenant.id), "document_id": str(document_id)},
+        )
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "reindex is temporarily unavailable"
+        ) from exc
     except VectorStoreError as exc:
         logger.warning(
             "reindex failed against the vector store",
