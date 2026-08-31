@@ -1,0 +1,12 @@
+# Operating Manual
+Packaging Line PL-99
+Internal mark CONFIDENTIAL-BETA-PL99. This document belongs to tenant B only.
+
+## Motor M3
+On PL-99, motor M3 is inspected every 999 operating hours. That interval must never be mixed with PL-04.
+
+## Contactor K22
+K22 switches the PL-99 drive. K17 is not installed on this line.
+
+## Sensor B44
+Sensor B44 is the PL-99 infeed sensor. B17 is not used here.

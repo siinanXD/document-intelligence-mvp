@@ -1,0 +1,10 @@
+# Payment terms
+
+## Invoice identifier
+Invoice INV-2024-0042 covers spare parts for Packaging Line PL-04 including contactor K17.
+
+## Due date
+Payment of INV-2024-0042 is due within thirty days of the invoice date.
+
+## Contact
+Accounts payable for INV-2024-0042 is the Berlin office, not the plant store.

@@ -1,0 +1,684 @@
+[
+  {
+    "id": "ans-m3-interval-en",
+    "language": "en",
+    "category": "answerable",
+    "query": "How often must motor M3 be inspected on Packaging Line PL-04?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "operating_manual.pdf",
+        "contains": "Motor M3 is inspected every 500 operating hours"
+      }
+    ],
+    "forbidden_documents": ["operating_manual_rev1.pdf"],
+    "notes": "Rev 2.3 is the current interval."
+  },
+  {
+    "id": "ans-k17-rating-en",
+    "language": "en",
+    "category": "answerable",
+    "query": "What is the rated current of contactor K17 in the current operating manual?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "operating_manual.pdf",
+        "contains": "K17 has a rated current of 16 A in Rev 2.3"
+      }
+    ],
+    "forbidden_documents": ["operating_manual_rev1.pdf"],
+    "notes": ""
+  },
+  {
+    "id": "ans-b17-alignment-en",
+    "language": "en",
+    "category": "answerable",
+    "query": "How should sensor B17 be aligned at the infeed?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "operating_manual.pdf",
+        "contains": "B17 must be aligned to 4 mm"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": ""
+  },
+  {
+    "id": "ans-line-name-en",
+    "language": "en",
+    "category": "answerable",
+    "query": "What is the name of the packaging line in the operating manual?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "operating_manual.pdf",
+        "contains": "The line is named Packaging Line PL-04"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": ""
+  },
+  {
+    "id": "ans-m3-interval-de",
+    "language": "de",
+    "category": "answerable",
+    "query": "Nach wie vielen Betriebsstunden muss Motor M3 geprüft werden?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "maintenance_manual.docx",
+        "contains": "Motor M3 muss nach 500 Betriebsstunden geprüft werden"
+      }
+    ],
+    "forbidden_documents": ["operating_manual_rev1.pdf"],
+    "notes": "German maintenance manual, not the superseded English rev."
+  },
+  {
+    "id": "ans-k17-cycles-de",
+    "language": "de",
+    "category": "answerable",
+    "query": "Wann muss Schütz K17 geprüft werden?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "maintenance_manual.docx",
+        "contains": "K17 ist nach 2000 Schaltspielen zu prüfen"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": ""
+  },
+  {
+    "id": "ans-chain-lube-de",
+    "language": "de",
+    "category": "answerable",
+    "query": "Wie oft wird die Kette der Linie PL-04 geschmiert?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "maintenance_manual.docx",
+        "contains": "alle 100 Betriebsstunden geschmiert"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": ""
+  },
+  {
+    "id": "ans-b17-weekly-de",
+    "language": "de",
+    "category": "answerable",
+    "query": "Wie oft muss Sensor B17 auf Verschmutzung geprüft werden?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "maintenance_manual.docx",
+        "contains": "B17 ist wöchentlich auf Verschmutzung zu prüfen"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": ""
+  },
+  {
+    "id": "ans-invoice-due-en",
+    "language": "en",
+    "category": "answerable",
+    "query": "When is payment due for the spare-parts invoice?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "payment_terms.md",
+        "contains": "due within thirty days of the invoice date"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": "Business fixture, not machine documentation."
+  },
+  {
+    "id": "lex-k17",
+    "language": "en",
+    "category": "lexical",
+    "query": "K17",
+    "tenant": "tenant_a",
+    "retrieval_mode": "lexical",
+    "relevant": [
+      {
+        "document": "operating_manual.pdf",
+        "contains": "Contactor K17 switches motor M3"
+      },
+      {
+        "document": "parts_list.xlsx",
+        "contains": "component_id K17"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": "Exact identifier; several tenant-a passages are relevant."
+  },
+  {
+    "id": "lex-m3",
+    "language": "en",
+    "category": "lexical",
+    "query": "M3",
+    "tenant": "tenant_a",
+    "retrieval_mode": "lexical",
+    "relevant": [
+      {
+        "document": "operating_manual.pdf",
+        "contains": "Motor M3 is inspected every 500 operating hours"
+      },
+      {
+        "document": "parts_list.xlsx",
+        "contains": "component_id M3"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": ""
+  },
+  {
+    "id": "lex-pl-04",
+    "language": "en",
+    "category": "lexical",
+    "query": "PL-04",
+    "tenant": "tenant_a",
+    "retrieval_mode": "lexical",
+    "relevant": [
+      {
+        "document": "operating_manual.pdf",
+        "contains": "PL-04"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": ""
+  },
+  {
+    "id": "lex-rev-2-3",
+    "language": "en",
+    "category": "lexical",
+    "query": "Rev 2.3",
+    "tenant": "tenant_a",
+    "retrieval_mode": "lexical",
+    "relevant": [
+      {
+        "document": "operating_manual.pdf",
+        "contains": "Document revision: Rev 2.3"
+      },
+      {
+        "document": "revision_notes.md",
+        "contains": "Die aktuelle Dokumentrevision ist Rev 2.3"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": ""
+  },
+  {
+    "id": "lex-6es7",
+    "language": "en",
+    "category": "lexical",
+    "query": "6ES7315-2EH14-0AB0",
+    "tenant": "tenant_a",
+    "retrieval_mode": "lexical",
+    "relevant": [
+      {
+        "document": "parts_list.xlsx",
+        "contains": "6ES7315-2EH14-0AB0"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": "Siemens order code; substring match required."
+  },
+  {
+    "id": "lex-b17",
+    "language": "en",
+    "category": "lexical",
+    "query": "B17",
+    "tenant": "tenant_a",
+    "retrieval_mode": "lexical",
+    "relevant": [
+      {
+        "document": "operating_manual.pdf",
+        "contains": "Sensor B17 is an inductive proximity switch"
+      },
+      {
+        "document": "parts_list.xlsx",
+        "contains": "component_id B17"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": ""
+  },
+  {
+    "id": "lex-inv-2024-0042",
+    "language": "en",
+    "category": "lexical",
+    "query": "INV-2024-0042",
+    "tenant": "tenant_a",
+    "retrieval_mode": "lexical",
+    "relevant": [
+      {
+        "document": "payment_terms.md",
+        "contains": "Invoice INV-2024-0042 covers spare parts"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": ""
+  },
+  {
+    "id": "lex-bom-1042",
+    "language": "en",
+    "category": "lexical",
+    "query": "BOM-1042",
+    "tenant": "tenant_a",
+    "retrieval_mode": "lexical",
+    "relevant": [
+      {
+        "document": "parts_list.xlsx",
+        "contains": "article BOM-1042"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": ""
+  },
+  {
+    "id": "lex-bes-517",
+    "language": "en",
+    "category": "lexical",
+    "query": "BES-517",
+    "tenant": "tenant_a",
+    "retrieval_mode": "lexical",
+    "relevant": [
+      {
+        "document": "parts_list.xlsx",
+        "contains": "type BES-517"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": ""
+  },
+  {
+    "id": "unans-decommission",
+    "language": "en",
+    "category": "unanswerable",
+    "query": "When was Packaging Line PL-04 decommissioned?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [],
+    "forbidden_documents": [],
+    "notes": "The line is in service; no decommissioning date exists."
+  },
+  {
+    "id": "unans-plc-checksum",
+    "language": "en",
+    "category": "unanswerable",
+    "query": "What is the PLC program checksum for the PL-04 CPU?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [],
+    "forbidden_documents": [],
+    "notes": "Order code is present; checksum is not."
+  },
+  {
+    "id": "unans-hydraulic-pressure",
+    "language": "de",
+    "category": "unanswerable",
+    "query": "Welcher Hydraulikdruck ist für Zylinder Z12 vorgeschrieben?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [],
+    "forbidden_documents": [],
+    "notes": "No hydraulic documentation in the corpus."
+  },
+  {
+    "id": "unans-operator-salary",
+    "language": "en",
+    "category": "unanswerable",
+    "query": "What is the hourly wage of the PL-04 operator?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [],
+    "forbidden_documents": [],
+    "notes": ""
+  },
+  {
+    "id": "unans-q42-mapping",
+    "language": "en",
+    "category": "unanswerable",
+    "query": "Which PLC output Q4.2 drives contactor K17 and motor M3?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [],
+    "forbidden_documents": [],
+    "notes": "That mapping is not written in the fixtures; schematic understanding is out of scope."
+  },
+  {
+    "id": "multi-m3-manual-and-bom",
+    "language": "en",
+    "category": "multi_document",
+    "query": "Which motor is listed as M3 and how often is it inspected?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "operating_manual.pdf",
+        "contains": "Motor M3 is inspected every 500 operating hours"
+      },
+      {
+        "document": "parts_list.xlsx",
+        "contains": "Traction motor 3 kW"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": "Evidence in the manual and the BOM."
+  },
+  {
+    "id": "multi-k17-manual-and-bom",
+    "language": "en",
+    "category": "multi_document",
+    "query": "What is contactor K17 used for and which spare article is it?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "operating_manual.pdf",
+        "contains": "Contactor K17 switches motor M3"
+      },
+      {
+        "document": "parts_list.xlsx",
+        "contains": "component_id K17"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": ""
+  },
+  {
+    "id": "multi-b17-sensor",
+    "language": "en",
+    "category": "multi_document",
+    "query": "Where is sensor B17 used and what article is it in the parts list?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "operating_manual.pdf",
+        "contains": "Sensor B17 is an inductive proximity switch"
+      },
+      {
+        "document": "parts_list.xlsx",
+        "contains": "component_id B17"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": ""
+  },
+  {
+    "id": "multi-rev-and-manual-de",
+    "language": "de",
+    "category": "multi_document",
+    "query": "Welche Dokumentrevision gilt und welches M3-Intervall steht im Wartungshandbuch?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "revision_notes.md",
+        "contains": "Die aktuelle Dokumentrevision ist Rev 2.3"
+      },
+      {
+        "document": "maintenance_manual.docx",
+        "contains": "Motor M3 muss nach 500 Betriebsstunden geprüft werden"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": ""
+  },
+  {
+    "id": "multi-invoice-and-k17",
+    "language": "en",
+    "category": "multi_document",
+    "query": "Which invoice covers the K17 spare and what is K17's rated current?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "payment_terms.md",
+        "contains": "Invoice INV-2024-0042 covers spare parts"
+      },
+      {
+        "document": "operating_manual.pdf",
+        "contains": "K17 has a rated current of 16 A in Rev 2.3"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": ""
+  },
+  {
+    "id": "ver-m3-interval-authoritative",
+    "language": "en",
+    "category": "versioned",
+    "query": "What is the current mandatory inspection interval for motor M3?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "operating_manual.pdf",
+        "contains": "This interval is mandatory and replaces the 250-hour interval"
+      }
+    ],
+    "forbidden_documents": ["operating_manual_rev1.pdf"],
+    "notes": "Rev 1.1 still says 250 hours and is not relevant."
+  },
+  {
+    "id": "ver-current-revision",
+    "language": "en",
+    "category": "versioned",
+    "query": "Which operating-manual revision is current for PL-04?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "operating_manual.pdf",
+        "contains": "This revision supersedes Rev 1.1"
+      },
+      {
+        "document": "revision_notes.md",
+        "contains": "Die aktuelle Dokumentrevision ist Rev 2.3"
+      }
+    ],
+    "forbidden_documents": ["operating_manual_rev1.pdf"],
+    "notes": ""
+  },
+  {
+    "id": "ver-k17-current-rating",
+    "language": "en",
+    "category": "versioned",
+    "query": "What rated current should be used for K17 today?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "operating_manual.pdf",
+        "contains": "K17 has a rated current of 16 A in Rev 2.3"
+      }
+    ],
+    "forbidden_documents": ["operating_manual_rev1.pdf"],
+    "notes": "Rev 1.1 still lists 12 A."
+  },
+  {
+    "id": "ver-superseded-warning",
+    "language": "en",
+    "category": "versioned",
+    "query": "Which operating manual revision must not be used for current maintenance planning?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "operating_manual_rev1.pdf",
+        "contains": "must not be used for current maintenance planning"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": "The superseded file is the relevant evidence for this question."
+  },
+  {
+    "id": "conf-m3-interval-both",
+    "language": "de",
+    "category": "conflicting",
+    "query": "Welche Betriebsstunden-Angaben gibt es für Motor M3?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "maintenance_manual.docx",
+        "contains": "Motor M3 muss nach 500 Betriebsstunden geprüft werden"
+      },
+      {
+        "document": "revision_notes.md",
+        "contains": "1000 Betriebsstunden für Motor M3"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": "Official 500 hours and a field report of 1000 hours are both relevant."
+  },
+  {
+    "id": "conf-k17-lead-time",
+    "language": "de",
+    "category": "conflicting",
+    "query": "Wie lange ist die Lieferzeit für Schütz K17?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "revision_notes.md",
+        "contains": "Lieferzeit für K17 wird im Lager mit 14 Tagen geführt"
+      },
+      {
+        "document": "parts_list.xlsx",
+        "contains": "spare lead time 21 days"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": "Warehouse 14 days vs BOM 21 days."
+  },
+  {
+    "id": "conf-k17-rating-history",
+    "language": "en",
+    "category": "conflicting",
+    "query": "Which rated currents have been published for contactor K17?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "operating_manual.pdf",
+        "contains": "K17 has a rated current of 16 A in Rev 2.3"
+      },
+      {
+        "document": "operating_manual_rev1.pdf",
+        "contains": "K17 has a rated current of 12 A in Rev 1.1"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": "Both published values are relevant to a history question."
+  },
+  {
+    "id": "conf-m3-hours-en",
+    "language": "en",
+    "category": "conflicting",
+    "query": "The documents disagree on motor M3 inspection hours. What values are stated?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "operating_manual.pdf",
+        "contains": "Motor M3 is inspected every 500 operating hours"
+      },
+      {
+        "document": "operating_manual_rev1.pdf",
+        "contains": "Motor M3 is inspected every 250 operating hours according to Rev 1.1"
+      },
+      {
+        "document": "revision_notes.md",
+        "contains": "1000 Betriebsstunden für Motor M3"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": "500, 250 and 1000 hours all appear in writing."
+  },
+  {
+    "id": "x-tenant-pl-99-from-a",
+    "language": "en",
+    "category": "cross_tenant",
+    "query": "What is Packaging Line PL-99?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [],
+    "forbidden_documents": [],
+    "notes": "PL-99 exists only for tenant B. Hits would be leakage or a false match."
+  },
+  {
+    "id": "x-tenant-secret-beta",
+    "language": "en",
+    "category": "cross_tenant",
+    "query": "CONFIDENTIAL-BETA-PL99",
+    "tenant": "tenant_a",
+    "retrieval_mode": "lexical",
+    "relevant": [],
+    "forbidden_documents": [],
+    "notes": "Lexical lookup of a tenant-B mark from tenant A must be empty."
+  },
+  {
+    "id": "x-tenant-m3-must-not-be-999",
+    "language": "en",
+    "category": "cross_tenant",
+    "query": "How often is motor M3 inspected?",
+    "tenant": "tenant_a",
+    "retrieval_mode": "semantic",
+    "relevant": [
+      {
+        "document": "operating_manual.pdf",
+        "contains": "Motor M3 is inspected every 500 operating hours"
+      }
+    ],
+    "forbidden_documents": [],
+    "notes": "Tenant B also has motor M3 at 999 hours; that passage must not appear."
+  },
+  {
+    "id": "x-tenant-k22-from-a",
+    "language": "en",
+    "category": "cross_tenant",
+    "query": "K22",
+    "tenant": "tenant_a",
+    "retrieval_mode": "lexical",
+    "relevant": [],
+    "forbidden_documents": [],
+    "notes": "K22 exists only on tenant B."
+  },
+  {
+    "id": "x-tenant-pl-04-from-b",
+    "language": "en",
+    "category": "cross_tenant",
+    "query": "Packaging Line PL-04 inspection interval for motor M3",
+    "tenant": "tenant_b",
+    "retrieval_mode": "semantic",
+    "relevant": [],
+    "forbidden_documents": [],
+    "notes": "Tenant B asking about PL-04 must not see tenant A."
+  },
+  {
+    "id": "x-tenant-lex-pl-04-from-b",
+    "language": "en",
+    "category": "cross_tenant",
+    "query": "PL-04",
+    "tenant": "tenant_b",
+    "retrieval_mode": "lexical",
+    "relevant": [],
+    "forbidden_documents": [],
+    "notes": ""
+  }
+]

@@ -51,6 +51,7 @@ known-first-party = ["app", "tests"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["B008"]
+"app/evaluation/formats.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

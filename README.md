@@ -193,6 +193,17 @@ Create the test database once with
 PostgreSQL and create it there. The schema is built by running the real
 migrations, so every test run also exercises the migration path.
 
+### Retrieval evaluation
+
+```bash
+python -m app.evaluation                        # hashing embeddings, no paid calls
+python -m app.evaluation --mode lexical
+python -m app.evaluation --embeddings live      # opt-in; never ordinary CI
+```
+
+See [`docs/EVALUATION.md`](docs/EVALUATION.md). The golden corpus is synthetic
+and contains no customer documents. Cross-tenant leakage must be zero.
+
 ### Migrations
 
 ```bash
@@ -233,7 +244,7 @@ app/
   worker.py     the ingestion worker: python -m app.worker
 migrations/     Alembic environment and revisions
 tests/          pytest suite; every external call is mocked
-docs/           workflow and design notes
+docs/           workflow, privacy and evaluation notes
 ```
 
 Layering: `api -> services -> providers`. Routes never reach Qdrant, object

@@ -1,0 +1,13 @@
+# Operating Manual
+Packaging Line PL-04
+Document revision: Rev 1.1
+This revision is superseded by Rev 2.3 and must not be used for current maintenance planning.
+
+## Identification
+The line is named Packaging Line PL-04. The main drive motor is M3.
+
+## Motor M3 inspection
+Motor M3 is inspected every 250 operating hours according to Rev 1.1.
+
+## Contactor K17
+Contactor K17 switches motor M3. K17 has a rated current of 12 A in Rev 1.1.

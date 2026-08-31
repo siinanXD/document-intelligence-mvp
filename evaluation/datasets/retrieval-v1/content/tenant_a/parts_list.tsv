@@ -1,0 +1,6 @@
+article	component_id	description	notes
+BOM-1042	M3	Traction motor 3 kW	Siemens motor for Packaging Line PL-04
+BOM-1107	K17	Contactor 16 A	Switches motor M3; spare lead time 21 days
+BOM-1188	B17	Inductive sensor	Infeed proximity switch type BES-517
+BOM-2001	CPU-S7	SIMATIC CPU	Order code 6ES7315-2EH14-0AB0
+BOM-2044	HMI-12	Operator panel	Mounted on Packaging Line PL-04

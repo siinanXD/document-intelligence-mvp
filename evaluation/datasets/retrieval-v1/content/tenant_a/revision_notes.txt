@@ -1,0 +1,10 @@
+# Revisionshinweise PL-04
+
+## Rev 2.3
+Rev 2.3 hebt das Prüfintervall von Motor M3 von 250 auf 500 Betriebsstunden an. Die aktuelle Dokumentrevision ist Rev 2.3.
+
+## Abweichende Feldmeldung
+Eine Feldmeldung vom 12. März nennt 1000 Betriebsstunden für Motor M3. Das widerspricht Rev 2.3 und dem Wartungshandbuch.
+
+## Ersatzteil K17
+Die Lieferzeit für K17 wird im Lager mit 14 Tagen geführt. Das weicht von der 21-Tage-Angabe in der Stückliste ab.
