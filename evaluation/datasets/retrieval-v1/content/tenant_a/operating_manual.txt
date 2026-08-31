@@ -1,0 +1,19 @@
+# Operating Manual
+Packaging Line PL-04
+Document revision: Rev 2.3
+This revision supersedes Rev 1.1.
+
+## Identification
+The line is named Packaging Line PL-04. The main drive motor is M3. The motor contactor is K17. The infeed sensor is B17.
+
+## Motor M3 inspection
+Motor M3 is inspected every 500 operating hours. This interval is mandatory and replaces the 250-hour interval published in Rev 1.1.
+
+## Contactor K17
+Contactor K17 switches motor M3. K17 has a rated current of 16 A in Rev 2.3.
+
+## Sensor B17
+Sensor B17 is an inductive proximity switch at the infeed. B17 must be aligned to 4 mm.
+
+## Safety
+Do not bypass K17. Isolating M3 requires K17 to be in the off position.

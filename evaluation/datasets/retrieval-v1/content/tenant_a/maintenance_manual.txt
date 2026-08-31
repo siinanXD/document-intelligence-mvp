@@ -1,0 +1,15 @@
+# Wartungshandbuch
+Packaging Line PL-04
+Dokumentrevision: Rev 2.3
+
+## Motor M3
+Motor M3 muss nach 500 Betriebsstunden geprüft werden. Die Prüfung umfasst Lager, Temperatur und Isolationswiderstand.
+
+## Schütz K17
+Schütz K17 betätigt Motor M3. K17 ist nach 2000 Schaltspielen zu prüfen.
+
+## Sensor B17
+Sensor B17 überwacht die Zufuhr. B17 ist wöchentlich auf Verschmutzung zu prüfen.
+
+## Schmierplan
+Die Kette der Linie PL-04 wird alle 100 Betriebsstunden geschmiert.

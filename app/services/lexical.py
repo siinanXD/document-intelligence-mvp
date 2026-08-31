@@ -94,7 +94,11 @@ async def search(
         )
         .join(Document, Document.id == Chunk.document_id)
         .where(and_(*conditions, or_(matches_tokens, matches_substring)))
-        .order_by(func.greatest(rank, literal(0.0001, Float)).desc(), Chunk.ordinal)
+        .order_by(
+            func.greatest(rank, literal(0.0001, Float)).desc(),
+            Document.filename,
+            Chunk.ordinal,
+        )
         .limit(limit)
     )
 

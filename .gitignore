@@ -26,6 +26,7 @@ htmlcov/
 data/
 storage/
 *.sqlite3
+evaluation/reports/
 
 # Editors / OS
 .idea/
