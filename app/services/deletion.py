@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.engineering_models import EvidenceReference, PackageAssignment, PackageDocument
 from app.models import Chunk, Document, DocumentProfile, DocumentRelation, IngestionJob
 from app.providers.storage import StorageBackend
 from app.services.vector_store import DocumentVectorStore, VectorStoreService
@@ -90,6 +91,23 @@ async def delete_document(
     await session.execute(
         delete(IngestionJob).where(
             IngestionJob.tenant_id == tenant_id, IngestionJob.document_id == document_id
+        )
+    )
+    await session.execute(
+        delete(PackageAssignment).where(
+            PackageAssignment.tenant_id == tenant_id,
+            PackageAssignment.document_id == document_id,
+        )
+    )
+    await session.execute(
+        delete(PackageDocument).where(
+            PackageDocument.tenant_id == tenant_id, PackageDocument.document_id == document_id
+        )
+    )
+    await session.execute(
+        delete(EvidenceReference).where(
+            EvidenceReference.tenant_id == tenant_id,
+            EvidenceReference.document_id == document_id,
         )
     )
 

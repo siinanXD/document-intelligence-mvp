@@ -380,3 +380,40 @@ class IngestionJob(Base):
         CheckConstraint("attempts >= 0", name="ck_ingestion_jobs_attempts_non_negative"),
         CheckConstraint("max_attempts >= 1", name="ck_ingestion_jobs_max_attempts_positive"),
     )
+
+
+# Machine Intelligence tables register on the same metadata. Importing them
+# here keeps `import app.models` the single Alembic/autogenerate entry point.
+from app.engineering_models import (  # noqa: E402, F401
+    Assembly,
+    AssignmentState,
+    BehaviorClaimKind,
+    ConflictKind,
+    ConflictStatus,
+    DerivedBehaviorClaim,
+    EngineeringConflict,
+    EngineeringEntity,
+    EngineeringEntityCandidate,
+    EngineeringRelation,
+    EngineeringRelationCandidate,
+    EngineeringRelationKind,
+    EntityKind,
+    EvidenceBinding,
+    EvidenceLocatorKind,
+    EvidenceReference,
+    EvidenceSubjectKind,
+    HumanOverride,
+    IdentityStatus,
+    Machine,
+    MachinePackage,
+    PackageAssignment,
+    PackageDocument,
+    PackageStatus,
+    PlcBlock,
+    PlcDialect,
+    PlcProgram,
+    PlcReference,
+    PlcReferenceKind,
+    PlcVariable,
+    UnsupportedConstruct,
+)
