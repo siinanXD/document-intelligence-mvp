@@ -485,3 +485,43 @@ async def test_deleting_a_document_drops_facts_that_lose_their_last_evidence(
         subject_id=also_elsewhere.id,
     )
     assert [row.id for row in leftover] == [other_evidence.id]
+
+
+async def test_deleting_a_document_with_chunk_evidence_succeeds(
+    db_session, tenant, make_document, tmp_path
+):
+    package, document, _sheet = await _package_with_doc(db_session, tenant, make_document)
+    chunk = Chunk(
+        tenant_id=tenant.id,
+        document_id=document.id,
+        ordinal=0,
+        text="motor M1",
+        source_id=f"{document.id}:00000",
+    )
+    db_session.add(chunk)
+    await db_session.flush()
+    chunk_evidence = await engineering.record_evidence(
+        db_session,
+        tenant_id=tenant.id,
+        locator_kind=EvidenceLocatorKind.chunk,
+        document_id=document.id,
+        source_id=chunk.source_id,
+        page_number=1,
+    )
+    entity = await engineering.create_canonical_entity(
+        db_session,
+        tenant_id=tenant.id,
+        package_id=package.id,
+        entity_kind=EntityKind.component,
+        canonical_name="M1",
+        evidence_ids=[chunk_evidence.id],
+    )
+    storage = LocalStorageBackend(tmp_path)
+    await storage.put(document.storage_key, b"%PDF-1.4 fake")
+    outcome = await delete_document(
+        db_session, storage, tenant_id=tenant.id, document_id=document.id
+    )
+    assert outcome is not None
+    assert (
+        await engineering.get_entity(db_session, tenant_id=tenant.id, entity_id=entity.id) is None
+    )

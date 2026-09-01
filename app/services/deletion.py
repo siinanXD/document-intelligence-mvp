@@ -72,6 +72,8 @@ async def delete_document(
     if document.normalized_key:
         await storage.delete(document.normalized_key)
 
+    await drop_document_evidence(session, tenant_id=tenant_id, document_id=document_id)
+
     await session.execute(
         delete(Chunk).where(Chunk.tenant_id == tenant_id, Chunk.document_id == document_id)
     )
@@ -105,7 +107,6 @@ async def delete_document(
             PackageDocument.tenant_id == tenant_id, PackageDocument.document_id == document_id
         )
     )
-    await drop_document_evidence(session, tenant_id=tenant_id, document_id=document_id)
 
     if not already_deleted:
         document.deleted_at = datetime.now(UTC)

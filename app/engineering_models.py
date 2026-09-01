@@ -668,7 +668,7 @@ class EvidenceReference(Base):
             ["tenant_id", "source_id"],
             ["chunks.tenant_id", "chunks.source_id"],
             name="fk_evidence_references_tenant_source_id",
-            ondelete="SET NULL",
+            ondelete="RESTRICT",
         ),
         CheckConstraint(
             "page_number IS NULL OR page_number > 0",
