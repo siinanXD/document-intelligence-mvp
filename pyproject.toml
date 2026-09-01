@@ -32,7 +32,9 @@ dev = [
 ]
 observability = [
     # Optional. Not installed in default, dev, or CI. Tracing is fail-open.
-    "langfuse>=3,<5",
+    # Langfuse v4: the observations-first SDK. 4.7+ stamps trace-level
+    # attributes (session_id, user_id) onto every observation at ingestion.
+    "langfuse>=4.7,<5",
 ]
 
 [build-system]

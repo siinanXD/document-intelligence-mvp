@@ -68,6 +68,18 @@ class _NullSpan:
         return None
 
 
+class _FakePropagate:
+    """Stand-in for `langfuse.propagate_attributes`: records the attributes
+    it was asked to propagate and behaves as a context manager."""
+
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def __call__(self, **kwargs):
+        self.calls.append(kwargs)
+        return _NullSpan()
+
+
 class _TimeoutTracer(_RecordingTracer):
     async def record_generation(
         self, result, *, extra=None, input_payload=None, output_payload=None
@@ -214,6 +226,91 @@ async def test_langfuse_retrieval_span_has_no_chunk_text():
     assert "chunk" not in blob.lower() or "text" not in client.calls[0]["metadata"]["sources"][0]
     assert "text" not in client.calls[0]["metadata"]["sources"][0]
     assert client.calls[0]["name"] == "retrieval"
+
+
+async def test_generation_propagates_session_and_user_v4():
+    client = _FakeLangfuse()
+    propagate = _FakePropagate()
+    adapter = LangfuseTracingAdapter(client, propagate=propagate)
+    result = generation_from_prompt(
+        "answer",
+        ASK_GROUNDED,
+        provider="openai",
+        model="gpt-4o-mini",
+        trace_id="req-9",
+    )
+
+    await adapter.record_generation(result, extra={"request_id": "req-9", "tenant_id": "tenant-1"})
+
+    # The cost-bearing generation carries the session id (v4 model), and the
+    # observation is still created inside that propagation scope.
+    assert propagate.calls == [{"session_id": "req-9", "user_id": "tenant-1"}]
+    assert client.calls[0]["name"] == "ask_grounded"
+
+
+async def test_retrieval_propagates_session_and_user_v4():
+    client = _FakeLangfuse()
+    propagate = _FakePropagate()
+    adapter = LangfuseTracingAdapter(client, propagate=propagate)
+    retrieval = RetrievalTrace(mode="semantic", candidate_count=1, supplied_count=1)
+
+    await adapter.record_retrieval(
+        retrieval, extra={"tenant_id": "tenant-1", "request_id": "req-9"}
+    )
+
+    # Retrieval shares the request's session so it groups with its generation.
+    assert propagate.calls == [{"session_id": "req-9", "user_id": "tenant-1"}]
+    assert client.calls[0]["name"] == "retrieval"
+
+
+async def test_observation_created_without_propagation_when_unavailable():
+    # Unit path with no injected propagate (SDK not installed): still records.
+    client = _FakeLangfuse()
+    adapter = LangfuseTracingAdapter(client)
+    result = generation_from_prompt("a", ASK_GROUNDED, provider="openai", model="gpt-4o-mini")
+
+    await adapter.record_generation(result)
+
+    assert client.calls[0]["name"] == "ask_grounded"
+
+
+def test_from_settings_uses_v4_base_url_and_environment(monkeypatch):
+    import sys
+    import types
+
+    captured: dict = {}
+
+    class _FakeClient:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    def _fake_propagate(**kwargs):
+        return _NullSpan()
+
+    fake_module = types.ModuleType("langfuse")
+    fake_module.Langfuse = _FakeClient
+    fake_module.propagate_attributes = _fake_propagate
+    monkeypatch.setitem(sys.modules, "langfuse", fake_module)
+
+    adapter = LangfuseTracingAdapter.from_settings(
+        SimpleNamespace(
+            langfuse_public_key="pk-test",
+            langfuse_secret_key="sk-test",
+            langfuse_host="http://langfuse:3000",
+            langfuse_base_url=None,
+            environment="staging",
+            tracing_capture_content=False,
+        )
+    )
+
+    assert adapter is not None
+    # v4 constructor contract: server URL is `base_url`, not the legacy `host`
+    # kwarg, and the deployment environment is stamped on the client.
+    assert captured["base_url"] == "http://langfuse:3000"
+    assert captured["environment"] == "staging"
+    assert "host" not in captured
+    assert captured["public_key"] == "pk-test"
+    assert captured["secret_key"] == "sk-test"
 
 
 def test_get_tracing_adapter_defaults_to_null():

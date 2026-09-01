@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.correlation import correlation_extra
 from app.providers.base import EmbeddingProvider, LLMProvider
 from app.providers.generation import GenerationResult, RetrievalSourceTrace, RetrievalTrace
 from app.providers.prompts import ASK_GROUNDED
@@ -178,7 +179,10 @@ def _retrieval_trace(hits: list[SearchHit]) -> RetrievalTrace:
 
 async def _emit_retrieval(retrieval: RetrievalTrace, *, tenant_id) -> None:
     try:
-        await get_tracing_adapter().record_retrieval(retrieval, extra={"tenant_id": str(tenant_id)})
+        # Carry the request/job correlation alongside the tenant so the
+        # retrieval observation shares a session with its generation in v4.
+        extra = {"tenant_id": str(tenant_id), **correlation_extra()}
+        await get_tracing_adapter().record_retrieval(retrieval, extra=extra)
     except Exception as exc:
         logger.warning(
             "retrieval tracing failed",
