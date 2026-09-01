@@ -612,7 +612,9 @@ conformance sample even if the XML arrives later. SIN-93 waits for the file.
 
 * No Alembic revisions, ORM tables, or adapters.
 * No zip upload support yet (documented for SIN-100).
-* No fixture files yet (SIN-99).
+* Fixture and oracle: `evaluation/datasets/machine-intelligence-v1` (SIN-99).
+  The TIA conformance sample is still a placeholder until the owner supplies a
+  cleared export.
 * No changes to retrieval/generation evaluation corpora.
 * No Railway or TIA/EPLAN installation.
 * No live provider calls.

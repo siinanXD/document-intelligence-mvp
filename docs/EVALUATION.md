@@ -13,16 +13,16 @@ through `ingest_upload` and `process_job`.
 
 ```
 evaluation/
-  datasets/retrieval-v1/    versioned retrieval golden corpus
-  datasets/generation-v1/   grounded-answer cases over the same documents
+  datasets/retrieval-v1/                 versioned retrieval golden corpus
+  datasets/generation-v1/                grounded-answer cases over the same documents
+  datasets/machine-intelligence-v1/      SIN-99 conveyor-line fixture and oracle
   baselines/retrieval-v1.json
   baselines/generation-v1.json
-app/evaluation/             metrics, ingest, runners, CLI
+app/evaluation/                          metrics, ingest, runners, CLI
 ```
 
-`track` on each dataset is `retrieval` or `generation`. Later tracks
-(document classification, connection extraction, PLC mapping, …) add a new
-dataset directory and metric functions; they should not replace this package.
+`track` on each dataset is `retrieval`, `generation`, or `machine_intelligence`. Later tracks
+add a new dataset directory and metric functions; they should not replace this package.
 
 Generation-v1 reuses the retrieval-v1 synthetic files via relative paths. It
 does not copy customer data and it does not store generated answers.
@@ -167,3 +167,24 @@ cases; those are retrieval failures, not generation failures. The scripted LLM
 does not measure OpenAI answer quality. A live run is required before treating
 a prompt or model change as an answer-quality improvement. The judge is
 advisory.
+
+## Machine intelligence fixture (SIN-99)
+
+`evaluation/datasets/machine-intelligence-v1` is a synthetic 12-section conveyor
+line (CL-12) plus a machine-readable oracle. It does not replace retrieval-v1 or
+generation-v1. `python -m app.evaluation` still runs those two tracks only.
+
+```bash
+python -m app.evaluation.machine_intelligence          # regenerate committed sources + oracle
+python -m app.evaluation.machine_intelligence --check  # fail on generator drift
+```
+
+The generator in `app/evaluation/machine_intelligence/` is the source of truth.
+UTF-8 sources and `oracle.json` are committed. PDF/XLSX bytes are built in tests
+from those sources. Manufacturer “datasheets” are JSON facts with
+`https://example.invalid/...` URLs — not copyrighted manuals.
+
+The SimaticML XML is labelled synthetic. `conformance/` holds a provenance
+template and README, not a fake TIA export. SIN-93 must not claim TIA-export
+compatibility until a legally cleared sample is added there.
+

@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- synthetic generator output; NOT a TIA Portal export. dialect: tia-openness-block-export -->
+<Document>
+  <Engineering version="V17"/>
+  <DocumentInfo>
+    <Created>2026-01-01T00:00:00</Created>
+    <ExportSetting>WithDefaults</ExportSetting>
+    <InstalledProducts>
+      <Product>
+        <DisplayName>synthetic-fixture</DisplayName>
+        <DisplayVersion>machine-intelligence-v1.0.0</DisplayVersion>
+      </Product>
+    </InstalledProducts>
+  </DocumentInfo>
+  <SW.Blocks.OB ID="0">
+    <AttributeList>
+      <Name>OB1</Name>
+      <ProgrammingLanguage>SCL</ProgrammingLanguage>
+    </AttributeList>
+    <ObjectList>
+      <SW.Blocks.CompileUnit ID="1" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>FC_Mode();</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="2" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>CV01Ctrl();</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="3" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>CV02Ctrl();</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="4" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>CV03Ctrl();</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="5" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>CV04Ctrl();</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="6" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>CV05Ctrl();</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="7" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>CV06Ctrl();</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="8" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>CV07Ctrl();</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="9" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>CV08Ctrl();</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="10" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>CV09Ctrl();</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="11" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>CV10Ctrl();</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="12" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>CV11Ctrl();</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="13" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>CV12Ctrl();</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+    </ObjectList>
+  </SW.Blocks.OB>
+</Document>

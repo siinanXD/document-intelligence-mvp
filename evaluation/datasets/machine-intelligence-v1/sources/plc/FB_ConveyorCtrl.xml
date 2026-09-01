@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- synthetic generator output; NOT a TIA Portal export. dialect: tia-openness-block-export -->
+<Document>
+  <Engineering version="V17"/>
+  <DocumentInfo>
+    <Created>2026-01-01T00:00:00</Created>
+    <ExportSetting>WithDefaults</ExportSetting>
+    <InstalledProducts>
+      <Product>
+        <DisplayName>synthetic-fixture</DisplayName>
+        <DisplayVersion>machine-intelligence-v1.0.0</DisplayVersion>
+      </Product>
+    </InstalledProducts>
+  </DocumentInfo>
+  <SW.Blocks.FB ID="0">
+    <AttributeList>
+      <Name>FB_ConveyorCtrl</Name>
+      <ProgrammingLanguage>SCL</ProgrammingLanguage>
+    </AttributeList>
+    <ObjectList>
+      <SW.Blocks.CompileUnit ID="1" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>RunCmd := Start AND NOT Stop AND AutoMode AND Ready AND NOT Jam;</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="2" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>FaultLamp := Jam OR NOT ProtectFb;</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+    </ObjectList>
+  </SW.Blocks.FB>
+</Document>

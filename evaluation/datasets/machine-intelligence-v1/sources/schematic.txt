@@ -1,0 +1,274 @@
+TITLE BLOCK  machine=CL-12  page=E-01  sheet=1/30
+Drawing: Cover / title block
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Conveyor Line CL-12 — synthetic multi-conveyor fixture
+Not a customer drawing. Title block present for mutation tests.
+
+TITLE BLOCK  machine=CL-12  page=E-02  sheet=2/30
+Drawing: Incoming 400 VAC and main disconnect
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Shared electrical page. Tags appear on motor feeder sheets E-12..E-23.
+Line.EStopOk  Line.AutoMode  Line.Beacon  see E-08 / E-10
+
+TITLE BLOCK  machine=CL-12  page=E-03  sheet=3/30
+Drawing: Power distribution cabinet A
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Shared electrical page. Tags appear on motor feeder sheets E-12..E-23.
+Line.EStopOk  Line.AutoMode  Line.Beacon  see E-08 / E-10
+
+TITLE BLOCK  machine=CL-12  page=E-04  sheet=4/30
+Drawing: Power distribution cabinet B
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Shared electrical page. Tags appear on motor feeder sheets E-12..E-23.
+Line.EStopOk  Line.AutoMode  Line.Beacon  see E-08 / E-10
+
+TITLE BLOCK  machine=CL-12  page=E-05  sheet=5/30
+Drawing: 24 VDC control supply
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Shared electrical page. Tags appear on motor feeder sheets E-12..E-23.
+Line.EStopOk  Line.AutoMode  Line.Beacon  see E-08 / E-10
+
+TITLE BLOCK  machine=CL-12  page=E-06  sheet=6/30
+Drawing: CPU and communications
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Shared electrical page. Tags appear on motor feeder sheets E-12..E-23.
+Line.EStopOk  Line.AutoMode  Line.Beacon  see E-08 / E-10
+
+TITLE BLOCK  machine=CL-12  page=E-07  sheet=7/30
+Drawing: Distributed I/O ET200
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Shared electrical page. Tags appear on motor feeder sheets E-12..E-23.
+Line.EStopOk  Line.AutoMode  Line.Beacon  see E-08 / E-10
+
+TITLE BLOCK  machine=CL-12  page=E-08  sheet=8/30
+Drawing: Digital inputs 1
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Shared electrical page. Tags appear on motor feeder sheets E-12..E-23.
+Line.EStopOk  Line.AutoMode  Line.Beacon  see E-08 / E-10
+
+TITLE BLOCK  machine=CL-12  page=E-09  sheet=9/30
+Drawing: Digital inputs 2
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Shared electrical page. Tags appear on motor feeder sheets E-12..E-23.
+Line.EStopOk  Line.AutoMode  Line.Beacon  see E-08 / E-10
+
+TITLE BLOCK  machine=CL-12  page=E-10  sheet=10/30
+Drawing: Digital outputs
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Shared electrical page. Tags appear on motor feeder sheets E-12..E-23.
+Line.EStopOk  Line.AutoMode  Line.Beacon  see E-08 / E-10
+
+TITLE BLOCK  machine=CL-12  page=E-11  sheet=11/30
+Drawing: Analog I/O
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Shared electrical page. Tags appear on motor feeder sheets E-12..E-23.
+Line.EStopOk  Line.AutoMode  Line.Beacon  see E-08 / E-10
+
+TITLE BLOCK  machine=CL-12  page=E-12  sheet=12/30
+Drawing: CV01 motor feeder
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Motor feeder CV01-M1  drive=vfd  5.5 kW
+Run command CV01.RunCmd at %Q0.2 -> terminal path W-CV01-RUN
+Sensors: CV01-B1, CV01-B2, CV01-S1
+Cross-ref: power on E-03, VFD on E-24, terminals on E-25/E-26
+
+TITLE BLOCK  machine=CL-12  page=E-13  sheet=13/30
+Drawing: CV02 motor feeder
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Motor feeder CV02-M1  drive=dol  2.2 kW
+Run command CV02.RunCmd at %Q0.4 -> terminal path W-CV02-RUN
+Sensors: CV02-B1, CV02-B2, CV02-S1, CV02-B3
+Cross-ref: power on E-03, VFD on E-24, terminals on E-25/E-26
+
+TITLE BLOCK  machine=CL-12  page=E-14  sheet=14/30
+Drawing: CV03 motor feeder
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Motor feeder CV03-M1  drive=vfd  4.0 kW
+Run command CV03.RunCmd at %Q0.6 -> terminal path W-CV03-RUN
+Sensors: CV03-B1, CV03-B2, CV03-S1
+Cross-ref: power on E-03, VFD on E-24, terminals on E-25/E-26
+
+TITLE BLOCK  machine=CL-12  page=E-15  sheet=15/30
+Drawing: CV04 motor feeder
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Motor feeder CV04-M1  drive=vfd  5.5 kW
+Run command CV04.RunCmd at %Q1.1 -> terminal path W-CV04-RUN
+Sensors: CV04-B1, CV04-B2, CV04-S1, CV04-B3
+Cross-ref: power on E-03, VFD on E-24, terminals on E-25/E-26
+
+TITLE BLOCK  machine=CL-12  page=E-16  sheet=16/30
+Drawing: CV05 motor feeder
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Motor feeder CV05-M1  drive=dol  2.2 kW
+Run command CV05.RunCmd at %Q1.3 -> terminal path W-CV05-RUN
+Sensors: CV05-B1, CV05-B2, CV05-S1
+Cross-ref: power on E-03, VFD on E-24, terminals on E-25/E-26
+
+TITLE BLOCK  machine=CL-12  page=E-17  sheet=17/30
+Drawing: CV06 motor feeder
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Motor feeder CV06-M1  drive=vfd  4.0 kW
+Run command CV06.RunCmd at %Q1.5 -> terminal path W-CV06-RUN
+Sensors: CV06-B1, CV06-B2, CV06-S1, CV06-B3
+Cross-ref: power on E-03, VFD on E-24, terminals on E-25/E-26
+
+TITLE BLOCK  machine=CL-12  page=E-18  sheet=18/30
+Drawing: CV07 motor feeder
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Motor feeder CV07-M1  drive=vfd  5.5 kW
+Run command CV07.RunCmd at %Q2.0 -> terminal path W-CV07-RUN
+Sensors: CV07-B1, CV07-B2, CV07-S1
+Cross-ref: power on E-03, VFD on E-24, terminals on E-25/E-26
+
+TITLE BLOCK  machine=CL-12  page=E-19  sheet=19/30
+Drawing: CV08 motor feeder
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Motor feeder CV08-M1  drive=dol  2.2 kW
+Run command CV08.RunCmd at %Q2.2 -> terminal path W-CV08-RUN
+Sensors: CV08-B1, CV08-B2, CV08-S1, CV08-B3
+Cross-ref: power on E-03, VFD on E-24, terminals on E-25/E-26
+
+TITLE BLOCK  machine=CL-12  page=E-20  sheet=20/30
+Drawing: CV09 motor feeder
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Motor feeder CV09-M1  drive=vfd  4.0 kW
+Run command CV09.RunCmd at %Q2.4 -> terminal path W-CV09-RUN
+Sensors: CV09-B1, CV09-B2, CV09-S1
+Cross-ref: power on E-03, VFD on E-24, terminals on E-25/E-26
+
+TITLE BLOCK  machine=CL-12  page=E-21  sheet=21/30
+Drawing: CV10 motor feeder
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Motor feeder CV10-M1  drive=vfd  5.5 kW
+Run command CV10.RunCmd at %Q2.7 -> terminal path W-CV10-RUN
+Sensors: CV10-B1, CV10-B2, CV10-S1, CV10-B3
+Cross-ref: power on E-03, VFD on E-24, terminals on E-25/E-26
+
+TITLE BLOCK  machine=CL-12  page=E-22  sheet=22/30
+Drawing: CV11 motor feeder
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Motor feeder CV11-M1  drive=dol  2.2 kW
+Run command CV11.RunCmd at %Q3.1 -> terminal path W-CV11-RUN
+Sensors: CV11-B1, CV11-B2, CV11-S1
+Cross-ref: power on E-03, VFD on E-24, terminals on E-25/E-26
+
+TITLE BLOCK  machine=CL-12  page=E-23  sheet=23/30
+Drawing: CV12 motor feeder
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Motor feeder CV12-M1  drive=vfd  4.0 kW
+Run command CV12.RunCmd at %Q3.3 -> terminal path W-CV12-RUN
+Sensors: CV12-B1, CV12-B2, CV12-S1, CV12-B3
+Cross-ref: power on E-03, VFD on E-24, terminals on E-25/E-26
+
+TITLE BLOCK  machine=CL-12  page=E-24  sheet=24/30
+Drawing: VFD power and fieldbus
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Shared electrical page. Tags appear on motor feeder sheets E-12..E-23.
+Line.EStopOk  Line.AutoMode  Line.Beacon  see E-08 / E-10
+
+TITLE BLOCK  machine=CL-12  page=E-25  sheet=25/30
+Drawing: Terminal plan cabinet A
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Shared electrical page. Tags appear on motor feeder sheets E-12..E-23.
+Line.EStopOk  Line.AutoMode  Line.Beacon  see E-08 / E-10
+
+TITLE BLOCK  machine=CL-12  page=E-26  sheet=26/30
+Drawing: Terminal plan cabinet B
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Shared electrical page. Tags appear on motor feeder sheets E-12..E-23.
+Line.EStopOk  Line.AutoMode  Line.Beacon  see E-08 / E-10
+
+TITLE BLOCK  machine=CL-12  page=E-27  sheet=27/30
+Drawing: Cable list
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Shared electrical page. Tags appear on motor feeder sheets E-12..E-23.
+Line.EStopOk  Line.AutoMode  Line.Beacon  see E-08 / E-10
+
+TITLE BLOCK  machine=CL-12  page=E-28  sheet=28/30
+Drawing: Cross-page references
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Cross-page references:
+  CV01 motor E-12 <-> VFD E-24 <-> terminals E-25/E-26
+  CV02 motor E-13 <-> VFD E-24 <-> terminals E-25/E-26
+  CV03 motor E-14 <-> VFD E-24 <-> terminals E-25/E-26
+  CV04 motor E-15 <-> VFD E-24 <-> terminals E-25/E-26
+  CV05 motor E-16 <-> VFD E-24 <-> terminals E-25/E-26
+  CV06 motor E-17 <-> VFD E-24 <-> terminals E-25/E-26
+  CV07 motor E-18 <-> VFD E-24 <-> terminals E-25/E-26
+  CV08 motor E-19 <-> VFD E-24 <-> terminals E-25/E-26
+  CV09 motor E-20 <-> VFD E-24 <-> terminals E-25/E-26
+  CV10 motor E-21 <-> VFD E-24 <-> terminals E-25/E-26
+  CV11 motor E-22 <-> VFD E-24 <-> terminals E-25/E-26
+  CV12 motor E-23 <-> VFD E-24 <-> terminals E-25/E-26
+
+TITLE BLOCK  machine=CL-12  page=E-29  sheet=29/30
+Drawing: Revision / copied page (conflict)
+CPU class: S7-1500-class   cabinets: A, B   see also E-30
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Shared electrical page. Tags appear on motor feeder sheets E-12..E-23.
+Line.EStopOk  Line.AutoMode  Line.Beacon  see E-08 / E-10
+
+TITLE BLOCK  machine=CL-12  page=E-30  sheet=30/30
+Drawing: Overview single-line
+CPU class: S7-1500-class   cabinets: A, B   see also E-01
+Engineering: V17  generator=machine-intelligence-v1.0.0
+
+Shared electrical page. Tags appear on motor feeder sheets E-12..E-23.
+Line.EStopOk  Line.AutoMode  Line.Beacon  see E-08 / E-10

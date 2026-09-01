@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- synthetic generator output; NOT a TIA Portal export. dialect: tia-openness-block-export -->
+<Document>
+  <Engineering version="V17"/>
+  <DocumentInfo>
+    <Created>2026-01-01T00:00:00</Created>
+    <ExportSetting>WithDefaults</ExportSetting>
+    <InstalledProducts>
+      <Product>
+        <DisplayName>synthetic-fixture</DisplayName>
+        <DisplayVersion>machine-intelligence-v1.0.0</DisplayVersion>
+      </Product>
+    </InstalledProducts>
+  </DocumentInfo>
+  <SW.Blocks.FB ID="0">
+    <AttributeList>
+      <Name>FB_Alarm</Name>
+      <ProgrammingLanguage>SCL</ProgrammingLanguage>
+    </AttributeList>
+    <ObjectList>
+      <SW.Blocks.CompileUnit ID="1" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>// network 1</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="2" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>// network 2</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="3" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>// network 3</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="4" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>// network 4</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="5" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>// network 5</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="6" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>// network 6</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="7" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>// network 7</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="8" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>// network 8</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+      <SW.Blocks.CompileUnit ID="9" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>UNKNOWN_INSTRUCTION();</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+    </ObjectList>
+  </SW.Blocks.FB>
+</Document>

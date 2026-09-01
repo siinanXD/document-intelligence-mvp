@@ -1,0 +1,184 @@
+{
+  "conformance_sample": {
+    "expected_path": "conformance/sample.xml",
+    "notes": "Do not replace the placeholder with generator XML. SIN-93 waits for a legally cleared TIA-exported block.",
+    "provenance_template": "conformance/provenance.template.json",
+    "status": "placeholder"
+  },
+  "description": "Synthetic 12-section conveyor line for Machine Intelligence. Not customer data. Not a TIA Portal project.",
+  "documents": [
+    {
+      "format": "md",
+      "id": "overview",
+      "relative_path": "overview.md",
+      "role": "overview"
+    },
+    {
+      "format": "pdf",
+      "id": "schematic",
+      "relative_path": "schematic.pdf",
+      "role": "schematic",
+      "source": "schematic.txt"
+    },
+    {
+      "format": "xlsx",
+      "id": "io-list",
+      "relative_path": "io_list.xlsx",
+      "role": "io",
+      "source": "io_list.tsv"
+    },
+    {
+      "format": "xlsx",
+      "id": "hardware",
+      "relative_path": "hardware.xlsx",
+      "role": "hardware",
+      "source": "hardware.tsv"
+    },
+    {
+      "format": "xlsx",
+      "id": "cables",
+      "relative_path": "cables.xlsx",
+      "role": "cables",
+      "source": "cables.tsv"
+    },
+    {
+      "format": "xlsx",
+      "id": "terminals",
+      "relative_path": "terminals.xlsx",
+      "role": "terminals",
+      "source": "terminals.tsv"
+    },
+    {
+      "format": "xlsx",
+      "id": "alarms",
+      "relative_path": "alarms.xlsx",
+      "role": "alarms",
+      "source": "alarms.tsv"
+    },
+    {
+      "format": "xlsx",
+      "id": "bom",
+      "relative_path": "bom.xlsx",
+      "role": "bom",
+      "source": "bom.tsv"
+    },
+    {
+      "format": "xlsx",
+      "id": "bom-old",
+      "relative_path": "bom_rev_old.xlsx",
+      "role": "revised",
+      "source": "bom_rev_old.tsv"
+    },
+    {
+      "format": "xlsx",
+      "id": "motor-drive",
+      "relative_path": "motor_drive.xlsx",
+      "role": "motor_drive",
+      "source": "motor_drive.tsv"
+    },
+    {
+      "format": "md",
+      "id": "commissioning",
+      "relative_path": "commissioning.md",
+      "role": "commissioning"
+    },
+    {
+      "format": "json",
+      "id": "manufacturer-facts",
+      "relative_path": "manufacturer_facts.json",
+      "role": "manufacturer_facts"
+    },
+    {
+      "format": "md",
+      "id": "revision",
+      "relative_path": "revision.md",
+      "role": "revision"
+    },
+    {
+      "format": "md",
+      "id": "unrelated",
+      "relative_path": "unrelated_hvac.md",
+      "role": "unrelated"
+    },
+    {
+      "format": "png",
+      "id": "photo",
+      "relative_path": "cabinet_photo.png",
+      "role": "photo"
+    },
+    {
+      "format": "xml",
+      "id": "ob1-xml",
+      "relative_path": "plc/OB1.xml",
+      "role": "plc_xml"
+    },
+    {
+      "format": "scl",
+      "id": "ob1-scl",
+      "relative_path": "plc/OB1.scl",
+      "role": "plc_scl"
+    },
+    {
+      "format": "xml",
+      "id": "fb-ctrl-xml",
+      "relative_path": "plc/FB_ConveyorCtrl.xml",
+      "role": "plc_xml"
+    },
+    {
+      "format": "scl",
+      "id": "fb-ctrl-scl",
+      "relative_path": "plc/FB_ConveyorCtrl.scl",
+      "role": "plc_scl"
+    },
+    {
+      "format": "xml",
+      "id": "fb-alarm-xml",
+      "relative_path": "plc/FB_Alarm.xml",
+      "role": "plc_xml"
+    },
+    {
+      "format": "scl",
+      "id": "fb-alarm-scl",
+      "relative_path": "plc/FB_Alarm.scl",
+      "role": "plc_scl"
+    },
+    {
+      "format": "xml",
+      "id": "fc-mode-xml",
+      "relative_path": "plc/FC_Mode.xml",
+      "role": "plc_xml"
+    },
+    {
+      "format": "scl",
+      "id": "fc-mode-scl",
+      "relative_path": "plc/FC_Mode.scl",
+      "role": "plc_scl"
+    },
+    {
+      "format": "xml",
+      "id": "db-line-xml",
+      "relative_path": "plc/DB_Line.xml",
+      "role": "plc_xml"
+    },
+    {
+      "format": "csv",
+      "id": "xref",
+      "relative_path": "plc/cross_references.csv",
+      "role": "cross_references"
+    },
+    {
+      "format": "awl",
+      "id": "s5",
+      "relative_path": "s5/conveyor_start.awl",
+      "role": "s5_text"
+    }
+  ],
+  "generator_version": "machine-intelligence-v1.0.0",
+  "name": "machine-intelligence-v1",
+  "profiles": {
+    "ci": "Conveyors CV01-CV03 plus shared line objects. Same oracle version.",
+    "full": "All 12 conveyors, 30 schematic pages, full I/O."
+  },
+  "track": "machine_intelligence",
+  "version": "v1.0.0"
+}

@@ -1,0 +1,17 @@
+FUNCTION_BLOCK FB_ConveyorCtrl
+VAR_INPUT
+  Start : Bool;
+  Stop : Bool;
+  AutoMode : Bool;
+  Ready : Bool;
+  Jam : Bool;
+  ProtectFb : Bool;
+END_VAR
+VAR_OUTPUT
+  RunCmd : Bool;
+  FaultLamp : Bool;
+END_VAR
+BEGIN
+  RunCmd := Start AND NOT Stop AND AutoMode AND Ready AND NOT Jam;
+  FaultLamp := Jam OR NOT ProtectFb;
+END_FUNCTION_BLOCK

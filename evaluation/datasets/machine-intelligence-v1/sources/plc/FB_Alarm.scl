@@ -1,0 +1,12 @@
+FUNCTION_BLOCK FB_Alarm
+VAR_INPUT
+  Jam : Bool;
+  VfdFault : Bool;
+END_VAR
+VAR_OUTPUT
+  Beacon : Bool;
+END_VAR
+BEGIN
+  Beacon := Jam OR VfdFault;
+  // Network 9 is unsupported in the XML fixture.
+END_FUNCTION_BLOCK
