@@ -32,6 +32,8 @@ later issue.
 The local API allows browser origins `http://127.0.0.1:3000` and
 `http://localhost:3000` when `ENVIRONMENT=local`. Override with `CORS_ORIGINS`.
 The UI talks to `NEXT_PUBLIC_API_BASE_URL` (default `http://127.0.0.1:8000`).
+In production the public prefix is `/backend` and the Next.js server proxies
+that to the private API (`API_UPSTREAM_URL`). See [`docs/DEPLOYMENT.md`](DEPLOYMENT.md).
 
 ## Checks
 

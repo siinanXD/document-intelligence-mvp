@@ -47,9 +47,14 @@ it. A document is `ready` only once its chunks are searchable.
 ## External providers
 
 Call sites ask the registry for an embedding or LLM capability; they do not
-name a vendor. The configured provider receives chunk text (to embed) or a
-prompt assembled from retrieved passages (to answer). Provider, model, version
-and dimensions are stored on the document so a later change is detectable.
+name a vendor. The configured production provider today is **OpenAI**: it
+receives chunk text (to embed) or a prompt assembled from retrieved passages
+(to answer). That data leaves our Railway EU services and is processed by
+OpenAI as an external processor. Placing Postgres, Qdrant, object storage and
+the app in EU West does **not** by itself make the product GDPR compliant.
+
+Provider, model, version and dimensions are stored on the document so a later
+change is detectable.
 
 CI and the default test suite mock every paid provider. Ordinary CI never
 makes a billed API call.

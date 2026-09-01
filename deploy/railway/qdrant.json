@@ -1,0 +1,13 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "deploy/Dockerfile.qdrant"
+  },
+  "deploy": {
+    "region": "europe-west4-drams3a",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 5,
+    "requiredMountPath": "/qdrant/storage"
+  }
+}

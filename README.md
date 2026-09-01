@@ -263,6 +263,12 @@ All configuration comes from the environment and is read through
 `app/core/settings.py`. [`.env.example`](.env.example) lists the variable names.
 `.env` is git-ignored and must never be committed.
 
+Production (Railway EU West) is documented in
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md): Dockerfiles under `deploy/`,
+config-as-code under `deploy/railway/`, and `scripts/production_smoke.sh`.
+Do not commit secret values. OpenAI remains an external processor even when
+our services run in the EU; see [`docs/PRIVACY.md`](docs/PRIVACY.md).
+
 ## Project layout
 
 ```
@@ -277,7 +283,8 @@ app/
 migrations/     Alembic environment and revisions
 tests/          pytest suite; every external call is mocked
 web/            Next.js cockpit (App Router)
-docs/           workflow, privacy, evaluation and generation notes
+deploy/         Railway Dockerfiles and config-as-code
+docs/           workflow, privacy, evaluation, generation and deployment notes
 ```
 
 Layering: `api -> services -> providers`. Routes never reach Qdrant, object
