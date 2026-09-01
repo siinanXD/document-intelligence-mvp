@@ -1,5 +1,6 @@
 import "./globals.css";
 import { Shell } from "@/components/Shell";
+import { TenantProvider } from "@/lib/useTenant";
 
 export const metadata = {
   title: "Document intelligence cockpit",
@@ -10,7 +11,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <Shell>{children}</Shell>
+        <TenantProvider>
+          <Shell>{children}</Shell>
+        </TenantProvider>
       </body>
     </html>
   );

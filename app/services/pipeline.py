@@ -68,7 +68,18 @@ def classify_failure(reason: str | None) -> tuple[str | None, str | None]:
         klass = "vector_store"
     elif "providerconfiguration" in lowered or "not configured" in lowered:
         klass = "configuration"
-    elif any(part in lowered for part in ("openai", "embedding", "llm", "provider")):
+    elif any(
+        part in lowered
+        for part in (
+            "openai",
+            "embedding",
+            "llm",
+            "provider",
+            "profilingerror",
+            "profiling",
+            "ratelimit",
+        )
+    ):
         klass = "provider"
     elif "database" in lowered or "postgres" in lowered:
         klass = "database"
@@ -83,11 +94,15 @@ def build_pipeline(
     chunk_count: int,
     job: IngestionJob | None,
 ) -> PipelineView:
-    parsed = bool(document.parser_name or document.normalized_key or document.content_hash)
-    chunked = chunk_count > 0
-    embedded = document.embedding_provider is not None
-    indexed = document.embedding_dimensions is not None
+    # Later success makes earlier stages complete so an empty (zero-chunk)
+    # ready document does not sit forever on "chunked" while indexed/ready.
     ready = document.status == DocumentStatus.ready
+    indexed = document.embedding_dimensions is not None or ready
+    embedded = document.embedding_provider is not None or indexed
+    chunked = chunk_count > 0 or embedded
+    parsed = (
+        bool(document.parser_name or document.normalized_key or document.content_hash) or chunked
+    )
     done = {
         "uploaded": True,
         "parsed": parsed,

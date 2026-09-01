@@ -18,6 +18,14 @@ def test_classify_failure_maps_vector_store_and_configuration():
     assert classify_failure("unexpected OperationalError")[1] == "OperationalError"
 
 
+def test_classify_failure_maps_profiling_provider_errors():
+    klass, error_type = classify_failure(
+        "ProfilingError: profile extraction failed (RateLimitError)"
+    )
+    assert klass == "provider"
+    assert error_type == "ProfilingError"
+
+
 def test_queued_document_is_at_uploaded():
     document = Document(
         tenant_id=uuid.uuid4(),
@@ -53,6 +61,28 @@ def test_ready_document_completes_every_stage():
     assert view.current_stage == "ready"
     assert all(stage.complete for stage in view.stages)
     assert view.chunk_count == 3
+
+
+def test_ready_empty_document_does_not_stick_on_chunked():
+    document = Document(
+        tenant_id=uuid.uuid4(),
+        filename="empty.txt",
+        mime_type="text/plain",
+        storage_key="k",
+        file_hash="a" * 64,
+        status=DocumentStatus.ready,
+        parser_name="stub",
+        normalized_key="k.json",
+        content_hash="b" * 64,
+        embedding_provider="openai",
+        embedding_model="text-embedding-3-small",
+        embedding_version="v1",
+        embedding_dimensions=1536,
+    )
+    view = build_pipeline(document=document, chunk_count=0, job=None)
+    assert view.current_stage == "ready"
+    assert all(stage.complete for stage in view.stages)
+    assert view.chunk_count == 0
 
 
 def test_failed_job_exposes_class_not_raw_reason():
