@@ -1,19 +1,23 @@
-"""Fields SIN-74 will record per evaluated generation.
+"""Project an `AskResult` into privacy-safe evaluation fields.
 
-This is not a generation-quality evaluator. It projects an `AskResult` into a
-stable dict so SIN-74 can persist prompt, model, tokens, latency, cost, cited
-source ids, finish status and trace id without rewriting the provider layer.
+Persists prompt identity, provider/model, tokens, latency, cost, cited
+source ids, finish status and trace id. Never stores the question, the
+answer, or passage text.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from app.services.qa import AskResult
+from app.services.qa import AskResult, GroundedAnswer
 
 
 def generation_eval_record(*, case_id: str, result: AskResult) -> dict[str, Any]:
     generation = result.generation
+    model_source_ids: list[str] = []
+    content = None if generation is None else generation.content
+    if isinstance(content, GroundedAnswer):
+        model_source_ids = list(content.source_ids)
     return {
         "dataset_case_id": case_id,
         "prompt_name": None if generation is None else generation.prompt_name,
@@ -26,6 +30,7 @@ def generation_eval_record(*, case_id: str, result: AskResult) -> dict[str, Any]
         "latency_ms": None if generation is None else generation.latency_ms,
         "estimated_cost_usd": None if generation is None else generation.estimated_cost_usd,
         "cited_source_ids": [hit.source_id for hit in result.sources],
+        "model_source_ids": model_source_ids,
         "finish_reason": None if generation is None else generation.finish_reason,
         "trace_id": None if generation is None else generation.trace_id,
         "request_id": None if generation is None else generation.request_id,

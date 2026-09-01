@@ -29,6 +29,12 @@ class Comparison:
 
 
 def compare_reports(current: dict[str, Any], baseline: dict[str, Any]) -> Comparison:
+    if current.get("track") == "generation":
+        return compare_generation_reports(current, baseline)
+    return compare_retrieval_reports(current, baseline)
+
+
+def compare_retrieval_reports(current: dict[str, Any], baseline: dict[str, Any]) -> Comparison:
     thresholds = baseline.get("thresholds") or {}
     leakage = 0
     failures: list[str] = []
@@ -63,6 +69,88 @@ def compare_reports(current: dict[str, Any], baseline: dict[str, Any]) -> Compar
     return Comparison(
         leakage=leakage, threshold_failures=failures, changed_cases=changed, deltas=deltas
     )
+
+
+GENERATION_QUALITY_KEYS = (
+    "citation_precision",
+    "unanswerable_correct_rate",
+    "conflict_correct_rate",
+    "factual_citation_rate",
+)
+
+GENERATION_HARD_KEYS = (
+    "cross_tenant_leakage",
+    "foreign_source_ids",
+    "unresolvable_citations",
+    "forbidden_claim_cases",
+)
+
+
+def compare_generation_reports(current: dict[str, Any], baseline: dict[str, Any]) -> Comparison:
+    thresholds = baseline.get("thresholds") or {}
+    body = current.get("summary") or {}
+    previous = (baseline.get("report") or baseline).get("summary") or {}
+    leakage = int(body.get("cross_tenant_leakage") or 0)
+    failures: list[str] = []
+    deltas: dict[str, float | None] = {}
+
+    for key in GENERATION_HARD_KEYS:
+        now = int(body.get(key) or 0)
+        floor = int(thresholds.get(key) or 0)
+        if now > floor:
+            failures.append(f"{key}={now} exceeds {floor}")
+
+    for key in GENERATION_QUALITY_KEYS:
+        now = body.get(key)
+        then = previous.get(key)
+        if now is not None and then is not None:
+            deltas[key] = round(float(now) - float(then), 4)
+        else:
+            deltas[key] = None
+        floor = thresholds.get(key)
+        if floor is not None and now is not None and float(now) + 1e-9 < float(floor):
+            failures.append(f"{key}={now} below threshold {floor}")
+
+    if leakage:
+        failures.append(f"citation_leakage={leakage} (hard invariant is 0)")
+
+    return Comparison(
+        leakage=leakage,
+        threshold_failures=failures,
+        changed_cases=_changed_generation_cases(body, previous),
+        deltas={"generation": deltas},
+    )
+
+
+def _changed_generation_cases(current: dict[str, Any], previous: dict[str, Any]) -> list[dict]:
+    now_cases = {item["case_id"]: item for item in current.get("cases") or []}
+    then_cases = {item["case_id"]: item for item in previous.get("cases") or []}
+    changed = []
+    fields = (
+        "retrieval_failed",
+        "generation_failed",
+        "no_evidence_correct",
+        "conflict_correct",
+        "factual_with_resolvable_citations",
+    )
+    for case_id in sorted(set(now_cases) | set(then_cases)):
+        now = now_cases.get(case_id)
+        then = then_cases.get(case_id)
+        if now is None or then is None:
+            changed.append({"mode": "generation", "case_id": case_id, "change": "added_or_removed"})
+            continue
+        for name in fields:
+            if now.get(name) != then.get(name):
+                changed.append(
+                    {
+                        "mode": "generation",
+                        "case_id": case_id,
+                        "field": name,
+                        "before": then.get(name),
+                        "after": now.get(name),
+                    }
+                )
+    return changed
 
 
 def _changed_cases(mode: str, current: dict[str, Any], previous: dict[str, Any]) -> list[dict]:
