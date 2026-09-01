@@ -51,7 +51,9 @@ Optional live-provider runs (never ordinary CI):
 ```bash
 python -m app.evaluation --embeddings live --no-compare --output evaluation/reports/live-retrieval.json
 
-# Bounded live generation. Caps default to 8 cases and $0.50 estimated cost.
+# Bounded live generation. Case cap defaults to 8. Dollar cap defaults to
+# $0.50 only when LLM_INPUT_USD_PER_MILLION and LLM_OUTPUT_USD_PER_MILLION
+# are both set (generation + judge usage). Embeddings are bounded by cases.
 python -m app.evaluation --track generation --llm live --embeddings live \
   --output evaluation/reports/live-generation.json
 
@@ -91,7 +93,12 @@ independent of any generated answer.
 - **scripted** (`evaluation` / `scripted-grounded`) is the default generation
   LLM. No network.
 - **live** uses `get_embedding_provider()` / `get_llm_provider()` from
-  settings. Opt-in only. Bounded by `--max-cases` and `--max-cost-usd`.
+  settings. Opt-in only. Bounded by `--max-cases` (default 8 when live).
+  `--max-cost-usd` applies to generation and judge usage only, and only
+  when both LLM price settings are configured. Passing `--max-cost-usd`
+  without those prices is an error. Embedding spend is bounded by the
+  case cap. A truncated run (`stopped_reason` or missing cases) fails
+  baseline comparison.
 
 ## Retrieval thresholds
 
@@ -119,10 +126,12 @@ first and are the release gate:
 
 * every cited source id must resolve in PostgreSQL for that tenant
 * citation precision against gold evidence
-* no foreign / cross-tenant source ids
+* no foreign / cross-tenant document ids (filenames are not unique)
 * no forbidden-document citations or forbidden-claim substrings
 * unanswerable cases must set `has_sufficient_evidence` false
 * conflicting cases must set `conflicting` true when both sides were retrieved
+* a truncated live run (`stopped_reason`, missing cases, or a quality metric
+  of `None` when the baseline has a floor) fails comparison
 
 Retrieval failures (gold evidence was not supplied to the model) and
 generation failures (the model was given enough evidence and still answered

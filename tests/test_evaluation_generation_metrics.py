@@ -38,6 +38,15 @@ def _case(**overrides) -> GenerationCase:
     return GenerationCase(**values)
 
 
+def _cite_maps(hits: list[SearchHit], *, owned: list[SearchHit] | None = None):
+    owned_hits = owned if owned is not None else hits
+    return {
+        "owned_document_ids": {str(hit.document_id) for hit in owned_hits},
+        "cited_document_ids": {hit.source_id: str(hit.document_id) for hit in hits},
+        "cited_filenames": {hit.source_id: hit.document_filename for hit in hits},
+    }
+
+
 def _hit(source_id: str, filename: str, text: str) -> SearchHit:
     return SearchHit(
         chunk_id=uuid4(),
@@ -123,8 +132,7 @@ def test_factual_answer_requires_resolvable_citations():
         relevant_ids={"a:00000"},
         retrieved_ids={"a:00000"},
         resolvable_ids={"a:00000"},
-        owned_filenames={"operating_manual.pdf"},
-        cited_filenames={"a:00000": "operating_manual.pdf"},
+        **_cite_maps([hit]),
     )
     assert score.generation_failed is False
     assert score.factual_with_resolvable_citations is True
@@ -139,17 +147,41 @@ def test_foreign_source_id_is_a_hard_generation_failure():
         conflicting=False,
         sources=[hit],
     )
+    owned = _hit("a:00000", "operating_manual.pdf", "500 operating hours")
     score = score_generation_case(
         case=_case(),
         result=result,
         relevant_ids={"a:00000"},
         retrieved_ids={"a:00000"},
         resolvable_ids={"b:00000"},
-        owned_filenames={"operating_manual.pdf"},
-        cited_filenames={"b:00000": "beta_operating_manual.md"},
+        **_cite_maps([hit], owned=[owned]),
     )
     assert score.foreign_source_ids == ["b:00000"]
     assert score.forbidden_claim_hits == ["999 operating hours"]
+    assert score.generation_failed is True
+
+
+def test_same_filename_on_a_foreign_document_id_is_leakage():
+    local = _hit(
+        "a:00000", "operating_manual.pdf", "Motor M3 is inspected every 500 operating hours."
+    )
+    foreign = _hit("b:00000", "operating_manual.pdf", "999 operating hours")
+    result = _result(
+        answer="Inspected every 999 operating hours.",
+        sufficient=True,
+        conflicting=False,
+        sources=[foreign],
+    )
+    score = score_generation_case(
+        case=_case(),
+        result=result,
+        relevant_ids={"a:00000"},
+        retrieved_ids={"a:00000"},
+        resolvable_ids={"b:00000"},
+        **_cite_maps([foreign], owned=[local]),
+    )
+    assert str(foreign.document_id) != str(local.document_id)
+    assert score.foreign_source_ids == ["b:00000"]
     assert score.generation_failed is True
 
 
@@ -168,14 +200,14 @@ def test_unanswerable_must_not_claim_sufficient_evidence():
         conflicting=False,
         sources=[],
     )
+    owned = _hit("a:00000", "operating_manual.pdf", "500 operating hours")
     score = score_generation_case(
         case=case,
         result=result,
         relevant_ids=set(),
         retrieved_ids={"r1"},
         resolvable_ids=set(),
-        owned_filenames={"operating_manual.pdf"},
-        cited_filenames={},
+        **_cite_maps([], owned=[owned]),
     )
     assert score.no_evidence_correct is True
     assert score.generation_failed is False
@@ -209,8 +241,7 @@ def test_conflict_flag_is_required_when_both_sides_were_retrieved():
         relevant_ids={"a:1", "a:2"},
         retrieved_ids={"a:1", "a:2"},
         resolvable_ids={"a:1", "a:2"},
-        owned_filenames={"maintenance_manual.docx", "revision_notes.md"},
-        cited_filenames={"a:1": "maintenance_manual.docx", "a:2": "revision_notes.md"},
+        **_cite_maps(hits),
     )
     assert score.conflict_correct is False
     assert score.generation_failed is True
@@ -223,14 +254,14 @@ def test_retrieval_failure_is_not_counted_as_generation_failure():
         conflicting=False,
         sources=[],
     )
+    owned = _hit("a:00000", "operating_manual.pdf", "500 operating hours")
     score = score_generation_case(
         case=_case(),
         result=result,
         relevant_ids={"a:00000"},
         retrieved_ids={"other"},
         resolvable_ids=set(),
-        owned_filenames={"operating_manual.pdf"},
-        cited_filenames={},
+        **_cite_maps([], owned=[owned]),
     )
     assert score.retrieval_failed is True
     assert score.generation_failed is False
@@ -275,6 +306,90 @@ def test_release_gate_fails_on_citation_leakage():
     comparison = compare_reports(leaked, baseline)
     assert comparison.passed is False
     assert comparison.leakage == 2
+
+
+def test_empty_aggregate_does_not_claim_perfect_factual_citation_rate():
+    summary = aggregate_generation_scores([])
+    assert summary.factual_answers == 0
+    assert summary.factual_citation_rate is None
+    assert summary.citation_precision is None
+
+
+def _generation_baseline_payload(
+    *, summary: dict, stopped_reason: str | None = None
+) -> tuple[dict, dict]:
+    embeddings = HashingEmbeddings()
+
+    class _LLM:
+        provider = "evaluation"
+        model = "scripted-grounded"
+
+    report = build_generation_report(
+        dataset_name="generation-v1",
+        dataset_version="1.0.0",
+        commit="abc",
+        embeddings=embeddings,
+        llm=_LLM(),
+        prompt_name="ask_grounded",
+        prompt_version="v1",
+        judge="none",
+        summary=summary,
+        stopped_reason=stopped_reason,
+    )
+    baseline = {
+        "thresholds": {
+            "cross_tenant_leakage": 0,
+            "foreign_source_ids": 0,
+            "unresolvable_citations": 0,
+            "forbidden_claim_cases": 0,
+            "citation_precision": 1.0,
+            "unanswerable_correct_rate": 1.0,
+            "conflict_correct_rate": 1.0,
+            "factual_citation_rate": 1.0,
+        },
+        "report": report,
+    }
+    return report, baseline
+
+
+def test_truncated_generation_run_fails_baseline_comparison():
+    full_summary = aggregate_generation_scores([]).as_dict()
+    full_summary["total_cases"] = 2
+    full_summary["cases"] = [
+        {
+            "case_id": "c1",
+            "retrieval_failed": False,
+            "generation_failed": False,
+            "no_evidence_correct": None,
+            "conflict_correct": None,
+            "factual_with_resolvable_citations": True,
+        },
+        {
+            "case_id": "c2",
+            "retrieval_failed": False,
+            "generation_failed": False,
+            "no_evidence_correct": None,
+            "conflict_correct": None,
+            "factual_with_resolvable_citations": True,
+        },
+    ]
+    full_summary["citation_precision"] = 1.0
+    full_summary["unanswerable_correct_rate"] = 1.0
+    full_summary["conflict_correct_rate"] = 1.0
+    full_summary["factual_citation_rate"] = 1.0
+    _report, baseline = _generation_baseline_payload(summary=full_summary)
+
+    truncated = aggregate_generation_scores([]).as_dict()
+    truncated["total_cases"] = 0
+    truncated["cases"] = []
+    current, _ = _generation_baseline_payload(summary=truncated, stopped_reason="max_cases")
+    comparison = compare_reports(current, baseline)
+    assert comparison.passed is False
+    failures = " ".join(comparison.threshold_failures)
+    assert "stopped_reason=max_cases" in failures
+    assert "total_cases=0 != baseline 2" in failures
+    assert "missing_cases=c1,c2" in failures
+    assert "factual_citation_rate is missing" in failures
 
 
 def test_scripted_parser_reads_supplied_source_blocks():

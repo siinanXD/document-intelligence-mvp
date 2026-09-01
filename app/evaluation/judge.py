@@ -26,6 +26,7 @@ class JudgeScore:
     groundedness: float | None
     completeness: float | None
     error: str | None = None
+    estimated_cost_usd: float | None = None
 
 
 class NullJudge:
@@ -90,4 +91,5 @@ class LiveJudge:
         return JudgeScore(
             groundedness=verdict.groundedness,
             completeness=verdict.completeness,
+            estimated_cost_usd=generation.estimated_cost_usd,
         )

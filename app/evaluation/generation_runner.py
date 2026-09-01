@@ -36,6 +36,29 @@ class GenerationRunResult:
     stopped_reason: str | None = None
 
 
+def account_case_cost(
+    *,
+    generation_cost: float | None,
+    judge_cost: float | None,
+    cost_sum: float,
+    max_cost_usd: float | None,
+    require_generation_cost: bool,
+) -> tuple[float, str | None]:
+    """Add one case's generation+judge USD to the running total.
+
+    The dollar cap is generation and judge usage only. Embeddings are bounded
+    by ``max_cases``. Unknown generation cost cannot be treated as zero.
+    """
+    if max_cost_usd is None:
+        return cost_sum, None
+    if require_generation_cost and generation_cost is None:
+        return cost_sum, "missing_generation_cost"
+    new_sum = cost_sum + (generation_cost or 0.0) + (judge_cost or 0.0)
+    if new_sum >= max_cost_usd:
+        return new_sum, "max_cost_usd"
+    return new_sum, None
+
+
 async def run_generation_dataset(
     session: AsyncSession,
     dataset: GenerationDataset,
@@ -47,18 +70,18 @@ async def run_generation_dataset(
     judge: Any | None = None,
     max_cases: int | None = None,
     max_cost_usd: float | None = None,
+    require_generation_cost: bool = False,
     limit: int = EVAL_ASK_LIMIT,
 ) -> GenerationRunResult:
     judge = judge or NullJudge()
     scores: list[GenerationCaseScore] = []
     cost_sum = 0.0
-    saw_cost = False
     stopped_reason: str | None = None
     for index, case in enumerate(dataset.cases):
         if max_cases is not None and index >= max_cases:
             stopped_reason = "max_cases"
             break
-        if max_cost_usd is not None and saw_cost and cost_sum >= max_cost_usd:
+        if max_cost_usd is not None and cost_sum >= max_cost_usd:
             stopped_reason = "max_cost_usd"
             break
         score = await _run_generation_case(
@@ -72,9 +95,16 @@ async def run_generation_dataset(
             limit=limit,
         )
         scores.append(score)
-        if score.estimated_cost_usd is not None:
-            saw_cost = True
-            cost_sum += score.estimated_cost_usd
+        cost_sum, cost_stop = account_case_cost(
+            generation_cost=score.estimated_cost_usd,
+            judge_cost=score.judge_estimated_cost_usd,
+            cost_sum=cost_sum,
+            max_cost_usd=max_cost_usd,
+            require_generation_cost=require_generation_cost,
+        )
+        if cost_stop is not None:
+            stopped_reason = cost_stop
+            break
     return GenerationRunResult(
         scores=scores,
         summary=aggregate_generation_scores(scores),
@@ -121,8 +151,10 @@ async def _run_generation_case(
     retrieved_ids = {
         source.source_id for source in (result.retrieval.sources if result.retrieval else ())
     }
+    # Filenames are not unique across tenants. Ownership is document_id.
+    owned_document_ids = {str(document.id) for document in tenant_docs.values()}
+    cited_document_ids = {hit.source_id: str(hit.document_id) for hit in result.sources}
     cited_filenames = {hit.source_id: hit.document_filename for hit in result.sources}
-    owned_filenames = {document.filename for document in tenant_docs.values()}
     resolvable = await _resolvable_source_ids(
         session, tenant_id=tenant_id, source_ids=[hit.source_id for hit in result.sources]
     )
@@ -138,11 +170,13 @@ async def _run_generation_case(
         relevant_ids=relevant,
         retrieved_ids=retrieved_ids,
         resolvable_ids=resolvable,
-        owned_filenames=owned_filenames,
+        owned_document_ids=owned_document_ids,
+        cited_document_ids=cited_document_ids,
         cited_filenames=cited_filenames,
         judge_groundedness=judge_score.groundedness,
         judge_completeness=judge_score.completeness,
         judge_error=judge_score.error,
+        judge_estimated_cost_usd=judge_score.estimated_cost_usd,
     )
 
 

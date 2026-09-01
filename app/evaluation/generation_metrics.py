@@ -1,7 +1,7 @@
 """Deterministic generation-quality checks.
 
 These metrics do not call a model. They score an `AskResult` against gold
-labels: resolvable citations, citation precision, foreign source ids,
+labels: resolvable citations, citation precision, foreign document ids,
 no-evidence behaviour, conflict flags, expected facts and forbidden claims.
 
 Retrieval failure (expected evidence was not supplied to the model) is
@@ -60,6 +60,7 @@ class GenerationCaseScore:
     judge_groundedness: float | None = None
     judge_completeness: float | None = None
     judge_error: str | None = None
+    judge_estimated_cost_usd: float | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -100,6 +101,7 @@ class GenerationCaseScore:
             "judge_groundedness": round4(self.judge_groundedness),
             "judge_completeness": round4(self.judge_completeness),
             "judge_error": self.judge_error,
+            "judge_estimated_cost_usd": self.judge_estimated_cost_usd,
         }
 
 
@@ -170,11 +172,13 @@ def score_generation_case(
     relevant_ids: set[str],
     retrieved_ids: set[str],
     resolvable_ids: set[str],
-    owned_filenames: set[str],
+    owned_document_ids: set[str],
+    cited_document_ids: dict[str, str],
     cited_filenames: dict[str, str],
     judge_groundedness: float | None = None,
     judge_completeness: float | None = None,
     judge_error: str | None = None,
+    judge_estimated_cost_usd: float | None = None,
 ) -> GenerationCaseScore:
     """Score one `/ask` result against gold labels. Does not log the answer."""
     record = generation_eval_record(case_id=case.id, result=result)
@@ -191,7 +195,9 @@ def score_generation_case(
     facts_found = [fact for fact in case.expected_facts if fact in result.answer]
     facts_missing = [fact for fact in case.expected_facts if fact not in result.answer]
     foreign = [
-        source_id for source_id in cited if cited_filenames.get(source_id) not in owned_filenames
+        source_id
+        for source_id in cited
+        if cited_document_ids.get(source_id) not in owned_document_ids
     ]
     forbidden_docs = [
         cited_filenames[source_id]
@@ -267,6 +273,7 @@ def score_generation_case(
         judge_groundedness=judge_groundedness,
         judge_completeness=judge_completeness,
         judge_error=judge_error,
+        judge_estimated_cost_usd=judge_estimated_cost_usd,
     )
 
 
@@ -323,7 +330,11 @@ def aggregate_generation_scores(scores: list[GenerationCaseScore]) -> Generation
     latencies = [score.latency_ms for score in scores if score.latency_ms is not None]
     input_tokens = [score.input_tokens for score in scores if score.input_tokens is not None]
     output_tokens = [score.output_tokens for score in scores if score.output_tokens is not None]
-    costs = [score.estimated_cost_usd for score in scores if score.estimated_cost_usd is not None]
+    costs = [
+        (score.estimated_cost_usd or 0.0) + (score.judge_estimated_cost_usd or 0.0)
+        for score in scores
+        if score.estimated_cost_usd is not None or score.judge_estimated_cost_usd is not None
+    ]
     grouped: dict[str, list[GenerationCaseScore]] = {}
     for score in scores:
         grouped.setdefault(score.category, []).append(score)
@@ -369,7 +380,7 @@ def aggregate_generation_scores(scores: list[GenerationCaseScore]) -> Generation
         unresolvable_citations=len(unresolvable),
         factual_answers=len(factual),
         factual_answers_with_resolvable_citations=len(factual_ok),
-        factual_citation_rate=(len(factual_ok) / len(factual)) if factual else 1.0,
+        factual_citation_rate=(len(factual_ok) / len(factual)) if factual else None,
         citation_precision=mean(precisable) if precisable else None,
         unanswerable_cases=len(unanswerable),
         unanswerable_correct=len(unanswerable_ok),

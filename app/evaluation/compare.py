@@ -94,6 +94,24 @@ def compare_generation_reports(current: dict[str, Any], baseline: dict[str, Any]
     failures: list[str] = []
     deltas: dict[str, float | None] = {}
 
+    if current.get("stopped_reason"):
+        failures.append(f"stopped_reason={current['stopped_reason']}")
+
+    now_total = int(body.get("total_cases") or 0)
+    then_total = int(previous.get("total_cases") or 0)
+    if now_total != then_total:
+        failures.append(f"total_cases={now_total} != baseline {then_total}")
+
+    now_ids = {item["case_id"] for item in body.get("cases") or []}
+    then_ids = {item["case_id"] for item in previous.get("cases") or []}
+    if now_ids != then_ids:
+        missing = sorted(then_ids - now_ids)
+        extra = sorted(now_ids - then_ids)
+        if missing:
+            failures.append(f"missing_cases={','.join(missing)}")
+        if extra:
+            failures.append(f"extra_cases={','.join(extra)}")
+
     for key in GENERATION_HARD_KEYS:
         now = int(body.get(key) or 0)
         floor = int(thresholds.get(key) or 0)
@@ -108,7 +126,9 @@ def compare_generation_reports(current: dict[str, Any], baseline: dict[str, Any]
         else:
             deltas[key] = None
         floor = thresholds.get(key)
-        if floor is not None and now is not None and float(now) + 1e-9 < float(floor):
+        if floor is not None and now is None:
+            failures.append(f"{key} is missing; threshold is {floor}")
+        elif floor is not None and float(now) + 1e-9 < float(floor):
             failures.append(f"{key}={now} below threshold {floor}")
 
     if leakage:

@@ -92,7 +92,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-cost-usd",
         type=float,
         default=None,
-        help="Stop a live run after this estimated cost. Defaults to 0.50 when live.",
+        help=(
+            "Stop a live generation/judge run after this estimated USD "
+            "(generation + judge usage). Defaults to 0.50 only when both "
+            "LLM_INPUT_USD_PER_MILLION and LLM_OUTPUT_USD_PER_MILLION are set."
+        ),
     )
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--baseline", type=Path, default=None)
@@ -119,16 +123,37 @@ def _is_live(args: argparse.Namespace) -> bool:
     return args.embeddings == "live" or args.llm == "live" or args.judge == "live"
 
 
+def _live_generation(args: argparse.Namespace) -> bool:
+    return args.llm == "live" or args.judge == "live"
+
+
+def _generation_prices_configured() -> bool:
+    settings = get_settings()
+    return (
+        settings.llm_input_usd_per_million is not None
+        and settings.llm_output_usd_per_million is not None
+    )
+
+
 def _apply_live_bounds(args: argparse.Namespace) -> None:
     if not _is_live(args):
         return
     if args.max_cases is None:
         args.max_cases = LIVE_DEFAULT_MAX_CASES
-    if args.max_cost_usd is None:
-        args.max_cost_usd = LIVE_DEFAULT_MAX_COST_USD
-    if (args.llm == "live" or args.judge == "live") and args.baseline is None:
-        # Live answers do not match the scripted hashing baseline.
-        args.no_compare = True
+    if _live_generation(args):
+        if args.max_cost_usd is None:
+            if _generation_prices_configured():
+                args.max_cost_usd = LIVE_DEFAULT_MAX_COST_USD
+        elif not _generation_prices_configured():
+            print(
+                "--max-cost-usd requires LLM_INPUT_USD_PER_MILLION and "
+                "LLM_OUTPUT_USD_PER_MILLION so usage can be converted to dollars.",
+                file=sys.stderr,
+            )
+            raise SystemExit(2)
+        if args.baseline is None:
+            # Live answers do not match the scripted hashing baseline.
+            args.no_compare = True
 
 
 async def _async_main(args: argparse.Namespace) -> int:
@@ -251,7 +276,9 @@ async def _run_generation(args: argparse.Namespace) -> int:
                         vector_store,
                         judge=judge,
                         max_cases=args.max_cases,
-                        max_cost_usd=args.max_cost_usd if _is_live(args) else None,
+                        max_cost_usd=args.max_cost_usd if _live_generation(args) else None,
+                        require_generation_cost=args.llm == "live"
+                        and args.max_cost_usd is not None,
                     )
             finally:
                 await session.close()
