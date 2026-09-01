@@ -1,0 +1,188 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f6f4ef;
+  --ink: #1b1b18;
+  --muted: #5c5a54;
+  --line: #d7d2c6;
+  --panel: #fffdf8;
+  --ok: #1f6b3a;
+  --warn: #8a5a00;
+  --err: #9b1c1c;
+  --current: #1d4e89;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  margin: 0;
+}
+
+a {
+  color: var(--current);
+}
+
+.shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1rem 1rem 3rem;
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: flex-end;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.75rem;
+}
+
+.top h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.kicker {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.banner,
+.panel,
+.tenant {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  margin-top: 1rem;
+}
+
+.banner.ok {
+  color: var(--ok);
+}
+.banner.warn {
+  color: var(--warn);
+}
+.banner.error,
+.error {
+  color: var(--err);
+}
+
+.tenant {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.tenant label,
+form label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+button {
+  background: var(--ink);
+  color: #fff;
+  cursor: pointer;
+  width: fit-content;
+}
+
+button:disabled {
+  opacity: 0.6;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.timeline {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.timeline li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.timeline .done {
+  color: var(--ok);
+}
+.timeline .current {
+  color: var(--current);
+  font-weight: 600;
+}
+.timeline .pending {
+  color: var(--muted);
+}
+
+.decisions {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.decisions div {
+  display: grid;
+  grid-template-columns: 12rem 1fr;
+  gap: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .decisions div {
+    grid-template-columns: 1fr;
+  }
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.list li,
+.hit {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: var(--panel);
+}
+
+pre {
+  white-space: pre-wrap;
+  font-size: 0.9rem;
+}
+
+.stack {
+  display: grid;
+  gap: 0.75rem;
+}

@@ -90,4 +90,6 @@ The repo-level `.cursor/environment.json` takes precedence over personal/team sa
 
 ## Frontend
 
-The current repository is backend-only. SIN-77 will add the Next.js app. When that lands, extend the existing `.cursor/install.sh` to install the committed frontend lockfile dependencies rather than introducing a second Cloud environment.
+The cockpit is `web/`. `.cursor/install.sh` runs `npm ci --prefix web` from the
+committed lockfile. `.cursor/check.sh` runs frontend lint, typecheck and tests
+alongside the backend checks.

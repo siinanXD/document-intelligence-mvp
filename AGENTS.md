@@ -16,10 +16,10 @@ This file adds Cloud-specific operating instructions; it does not replace those 
 This repository is configured so a Cloud Agent can work without any local computer being online.
 
 - `.cursor/environment.json` defines the Cloud Agent build and startup lifecycle.
-- `.cursor/Dockerfile` supplies Python 3.12 and Docker/Compose support.
-- `.cursor/install.sh` creates `.venv` and installs `.[dev,parsing]` during Cursor Builds.
+- `.cursor/Dockerfile` supplies Python 3.12, Node 22 and Docker/Compose support.
+- `.cursor/install.sh` creates `.venv`, installs `.[dev,parsing]`, and runs `npm ci --prefix web`.
 - `.cursor/start.sh` starts Docker, PostgreSQL and Qdrant, prepares the test database and applies Alembic migrations.
-- `.cursor/check.sh` runs the CI-equivalent lint, format, backend and parser checks.
+- `.cursor/check.sh` runs the CI-equivalent backend and frontend checks.
 
 At the start of a task, verify the environment rather than assuming it:
 
@@ -78,4 +78,6 @@ A secret being available does not authorize using it. Do not make paid/external 
 
 ## Frontend note
 
-The repository is backend-only today. When SIN-77 adds the Next.js app, update the Cloud environment install step to install the committed frontend lockfile dependencies. Do not add a parallel frontend environment or duplicate backend business logic.
+The cockpit lives in `web/`. Cloud install runs `npm ci --prefix web` from the
+committed lockfile. Do not add a parallel frontend environment or duplicate
+backend business logic.

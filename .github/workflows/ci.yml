@@ -72,6 +72,24 @@ jobs:
       - name: Tests
         run: pytest --ignore=tests/test_docling_parser.py
 
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install frontend
+        run: npm ci --prefix web
+      - name: Lint
+        run: npm run lint --prefix web
+      - name: Typecheck
+        run: npm run typecheck --prefix web
+      - name: Tests
+        run: npm test --prefix web
+
   # Docling pulls torch and friends - several gigabytes and minutes of install
   # time - so it does not belong in the loop every push waits on. This job
   # exercises the real parser separately, and does not gate the fast one.

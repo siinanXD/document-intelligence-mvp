@@ -12,3 +12,8 @@ ruff check .
 ruff format --check .
 pytest --ignore=tests/test_docling_parser.py
 pytest tests/test_docling_parser.py
+if [ -f web/package-lock.json ]; then
+  npm --prefix web run lint
+  npm --prefix web run typecheck
+  npm --prefix web test
+fi

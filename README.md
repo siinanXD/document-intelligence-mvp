@@ -11,6 +11,7 @@ indexing and Q&A land in the following milestones.
 ## Requirements
 
 - Python 3.12
+- Node.js 22 (for the `web/` cockpit)
 - Docker (for the local PostgreSQL and Qdrant services)
 
 ## Quickstart
@@ -28,6 +29,21 @@ docker compose up -d        # PostgreSQL on :5432, Qdrant on :6333
 alembic upgrade head        # create the schema
 uvicorn app.main:app --reload
 ```
+
+In a second terminal, run the worker so uploads actually process:
+
+```bash
+python -m app.worker
+```
+
+In a third terminal, start the cockpit:
+
+```bash
+cd web && npm install && npm run dev
+```
+
+Open http://127.0.0.1:3000. Create the `demo` tenant, upload a document, watch
+the pipeline, then search and ask. See [`docs/COCKPIT.md`](docs/COCKPIT.md).
 
 The API is then available on http://127.0.0.1:8000:
 
@@ -260,6 +276,7 @@ app/
   worker.py     the ingestion worker: python -m app.worker
 migrations/     Alembic environment and revisions
 tests/          pytest suite; every external call is mocked
+web/            Next.js cockpit (App Router)
 docs/           workflow, privacy, evaluation and generation notes
 ```
 
