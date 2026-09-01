@@ -15,7 +15,7 @@ from xml.sax.saxutils import escape
 from app.services.uploads import SUPPORTED_TYPES
 
 
-def build_file(fmt: str, source: str) -> tuple[bytes, str]:
+def build_file(fmt: str, source: str, *, sheet_name: str = "BOM") -> tuple[bytes, str]:
     """Return (bytes, canonical mime type) for one corpus document."""
     if fmt == "md":
         return source.encode("utf-8"), SUPPORTED_TYPES[".md"][0]
@@ -28,7 +28,7 @@ def build_file(fmt: str, source: str) -> tuple[bytes, str]:
     if fmt == "docx":
         return _docx(source), SUPPORTED_TYPES[".docx"][0]
     if fmt == "xlsx":
-        return _xlsx(source), SUPPORTED_TYPES[".xlsx"][0]
+        return _xlsx(source, sheet_name=sheet_name), SUPPORTED_TYPES[".xlsx"][0]
     raise ValueError(f"unsupported evaluation format: {fmt}")
 
 
@@ -113,7 +113,7 @@ def _docx(source: str) -> bytes:
     return buffer.getvalue()
 
 
-def _xlsx(source: str) -> bytes:
+def _xlsx(source: str, *, sheet_name: str = "BOM") -> bytes:
     rows = list(csv.reader(io.StringIO(source), delimiter="\t"))
     if not rows:
         rows = [["empty"]]
@@ -144,10 +144,10 @@ def _xlsx(source: str) -> bytes:
         '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
         f'count="{len(strings)}" uniqueCount="{len(strings)}">{shared}</sst>'
     )
-    workbook = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    workbook = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-<sheets><sheet name="BOM" sheetId="1" r:id="rId1"/></sheets>
+<sheets><sheet name="{escape(sheet_name)}" sheetId="1" r:id="rId1"/></sheets>
 </workbook>
 """
     content_types = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>

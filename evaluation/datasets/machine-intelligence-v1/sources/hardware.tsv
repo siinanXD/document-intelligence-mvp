@@ -1,0 +1,8 @@
+id	name	role	location	class
+CL12-CPU	CPU-CL12	plc	Cabinet A	S7-1500-class
+CL12-IO-A	ET200-A	distributed_io	Cabinet A	
+CL12-IO-B	ET200-B	distributed_io	Cabinet B	
+CL12-CAB-A	Cabinet A	cabinet		
+CL12-CAB-B	Cabinet B	cabinet		
+CL12-ESTOP	S1-ESTOP	safety_relay		
+photo-cabinet-a	Cabinet A photo	photo		

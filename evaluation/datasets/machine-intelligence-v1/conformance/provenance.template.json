@@ -1,0 +1,11 @@
+{
+  "anonymized": true,
+  "contains_customer_ip": false,
+  "expected_path": "conformance/sample.xml",
+  "export_command_or_ui_path": "",
+  "export_date": "",
+  "notes": "Fill when the owner supplies a legally cleared block export. Do not replace this template with generator XML.",
+  "producer": "TIA Portal / Openness export",
+  "status": "missing",
+  "tia_version": ""
+}

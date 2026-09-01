@@ -1,0 +1,26 @@
+{
+  "conformance_sample": {
+    "expected_path": "conformance/sample.xml",
+    "notes": "Do not replace the placeholder with generator XML. SIN-93 waits for a legally cleared TIA-exported block.",
+    "provenance_template": "conformance/provenance.template.json",
+    "status": "placeholder"
+  },
+  "engineering_version": "V17",
+  "interface_uri": "http://www.siemens.com/automation/Openness/SW/Interface/v5",
+  "name": "tia-openness-block-export",
+  "namespaces_in_synthetic_xml": false,
+  "required_elements": [
+    "Document",
+    "Engineering",
+    "DocumentInfo",
+    "SW.Blocks.OB",
+    "SW.Blocks.FB",
+    "SW.Blocks.FC",
+    "SW.Blocks.GlobalDB",
+    "AttributeList",
+    "ObjectList",
+    "SW.Blocks.CompileUnit",
+    "NetworkSource"
+  ],
+  "source": "Public TIA Portal Openness block-export element names. Not a captured TIA file."
+}

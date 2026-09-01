@@ -17,3 +17,7 @@ licence, redistribution terms and size.
 The local 30–50 case golden corpus remains the required retrieval deliverable.
 Generation-v1 reuses those same synthetic files and adds answerability labels;
 it is not a second customer corpus. Do not download these collections in CI.
+
+`evaluation/datasets/machine-intelligence-v1` is also synthetic and local (SIN-99).
+It is original generator output, not xPPU or any vendor project. Keep xPPU and
+other public plants out of CI.

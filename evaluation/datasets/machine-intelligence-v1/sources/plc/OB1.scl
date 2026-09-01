@@ -1,0 +1,16 @@
+ORGANIZATION_BLOCK OB1
+BEGIN
+  FC_Mode();
+  CV01Ctrl();
+  CV02Ctrl();
+  CV03Ctrl();
+  CV04Ctrl();
+  CV05Ctrl();
+  CV06Ctrl();
+  CV07Ctrl();
+  CV08Ctrl();
+  CV09Ctrl();
+  CV10Ctrl();
+  CV11Ctrl();
+  CV12Ctrl();
+END_ORGANIZATION_BLOCK

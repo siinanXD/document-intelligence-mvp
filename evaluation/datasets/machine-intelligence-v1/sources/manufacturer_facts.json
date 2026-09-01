@@ -1,0 +1,31 @@
+[
+  {
+    "catalog_no": "CL12-MOT-5K5",
+    "citation_url": "https://example.invalid/motors/CL12-MOT-5K5",
+    "component_id": "CV01-M1",
+    "manufacturer": "synthetic",
+    "note": "Synthetic stand-in. Do not treat as a real manufacturer datasheet.",
+    "rated_power_kw": 5.5
+  },
+  {
+    "catalog_no": "CL12-VFD-7K5",
+    "citation_url": "https://example.invalid/drives/CL12-VFD-7K5",
+    "compatible_with": [
+      "CL12-MOT-5K5"
+    ],
+    "component_id": "CV01-U1",
+    "manufacturer": "synthetic",
+    "rated_power_kw": 7.5
+  },
+  {
+    "catalog_no": "CL12-VFD-0K75",
+    "citation_url": "https://example.invalid/drives/CL12-VFD-0K75",
+    "component_id": "CV12-U1-wrong",
+    "incompatible_with": [
+      "CL12-MOT-4K0"
+    ],
+    "manufacturer": "synthetic",
+    "note": "Deliberately undersized candidate for negative mapping tests.",
+    "rated_power_kw": 0.75
+  }
+]

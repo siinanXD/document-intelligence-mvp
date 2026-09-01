@@ -1,0 +1,21 @@
+tag	kind	qty	revision	power_kw
+CV01-M1	motor	1	A	5.5
+CV01-U1	vfd	1	A	
+CV02-M1	motor	1	A	2.2
+CV03-M1	motor	1	A	4.0
+CV03-U1	vfd	1	A	
+CV04-M1	motor	1	A	5.5
+CV04-U1	vfd	1	A	
+CV05-M1	motor	1	A	2.2
+CV06-M1	motor	1	A	4.0
+CV06-U1	vfd	1	A	
+CV07-M1	motor	1	A	5.5
+CV07-U1	vfd	1	A	
+CV08-M1	motor	1	A	2.2
+CV09-M1	motor	1	A	4.0
+CV09-U1	vfd	1	A	
+CV10-M1	motor	1	A	5.5
+CV10-U1	vfd	1	A	
+CV11-M1	motor	1	A	2.2
+CV12-M1	motor	1	A	4.0
+CV12-U1	vfd	1	A	

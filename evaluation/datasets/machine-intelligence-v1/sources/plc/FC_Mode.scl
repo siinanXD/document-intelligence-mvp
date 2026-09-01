@@ -1,0 +1,10 @@
+FUNCTION FC_Mode : Void
+VAR_INPUT
+  Auto : Bool;
+  Manual : Bool;
+END_VAR
+VAR_OUTPUT
+  AutoMode : Bool;
+END_VAR
+AutoMode := Auto AND NOT Manual;
+END_FUNCTION

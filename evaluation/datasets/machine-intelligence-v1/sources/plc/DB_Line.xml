@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- synthetic generator output; NOT a TIA Portal export. dialect: tia-openness-block-export -->
+<Document>
+  <Engineering version="V17"/>
+  <DocumentInfo>
+    <Created>2026-01-01T00:00:00</Created>
+    <ExportSetting>WithDefaults</ExportSetting>
+    <InstalledProducts>
+      <Product>
+        <DisplayName>synthetic-fixture</DisplayName>
+        <DisplayVersion>machine-intelligence-v1.0.0</DisplayVersion>
+      </Product>
+    </InstalledProducts>
+  </DocumentInfo>
+  <SW.Blocks.GlobalDB ID="0">
+    <AttributeList>
+      <Name>DB_Line</Name>
+      <ProgrammingLanguage>DB</ProgrammingLanguage>
+    </AttributeList>
+    <ObjectList>
+      <SW.Blocks.CompileUnit ID="1" CompositionName="CompileUnits">
+        <AttributeList>
+          <NetworkSource>
+            <StatementList>// data</StatementList>
+          </NetworkSource>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+    </ObjectList>
+  </SW.Blocks.GlobalDB>
+</Document>
