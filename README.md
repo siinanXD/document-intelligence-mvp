@@ -43,7 +43,33 @@ cd web && npm install && npm run dev
 ```
 
 Open http://127.0.0.1:3000. Create the `demo` tenant, upload a document, watch
-the pipeline, then search and ask. See [`docs/COCKPIT.md`](docs/COCKPIT.md).
+the pipeline, then search and ask. See [`docs/COCKPIT.md`](docs/COCKPIT.md) and
+the five-minute demo below. The numbered MVP checklist is
+[`docs/MVP_ACCEPTANCE.md`](docs/MVP_ACCEPTANCE.md).
+
+### Five-minute demo
+
+1. Start Postgres, Qdrant, migrations, API, worker and cockpit as above.
+2. Open http://127.0.0.1:3000 and create tenant slug `demo`.
+3. Upload a small PDF contract, a lightly edited second PDF, a related DOCX
+   (same case or parties) and an unrelated `.txt` file.
+4. Open each document. The pipeline should reach **Ready**
+   (`uploaded → parsed → chunked → embedded → indexed → ready`).
+5. Search for a phrase that only the contract contains, then search tenant-wide.
+6. Ask a question the contract answers. Click a citation; the source page
+   shows the passage, page and section. If two versions disagree, the answer
+   is marked conflicting rather than smoothed over.
+7. Open relations on the versioned PDF: it should link as a possible version.
+   The unrelated file should not.
+8. Re-upload the original PDF bytes: the UI reports a duplicate and does not
+   queue a second job.
+9. Delete the unrelated file. It disappears from search.
+10. Optional health smoke (identifiers only):
+    `SMOKE_BASE_URL=http://127.0.0.1:8000 bash scripts/production_smoke.sh`
+
+The same flow is scripted without a browser in `tests/test_mvp_acceptance.py`
+(fake parser and providers; CI never calls OpenAI). Full item-by-item mapping:
+[`docs/MVP_ACCEPTANCE.md`](docs/MVP_ACCEPTANCE.md).
 
 The API is then available on http://127.0.0.1:8000:
 
