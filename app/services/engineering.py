@@ -159,6 +159,27 @@ async def get_package(session: AsyncSession, *, tenant_id, package_id) -> Machin
     return result.scalars().first()
 
 
+async def get_package_by_slug(
+    session: AsyncSession, *, tenant_id, slug: str
+) -> MachinePackage | None:
+    result = await session.execute(
+        select(MachinePackage).where(
+            MachinePackage.tenant_id == tenant_id, MachinePackage.slug == slug
+        )
+    )
+    return result.scalars().first()
+
+
+async def delete_package(session: AsyncSession, *, tenant_id, package_id) -> bool:
+    """Remove one package for this tenant. Missing or foreign ids are a no-op."""
+    package = await get_package(session, tenant_id=tenant_id, package_id=package_id)
+    if package is None:
+        return False
+    await session.delete(package)
+    await session.flush()
+    return True
+
+
 async def list_packages(session: AsyncSession, *, tenant_id) -> list[MachinePackage]:
     result = await session.execute(
         select(MachinePackage)

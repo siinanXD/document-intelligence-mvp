@@ -73,7 +73,6 @@ SUPPORTED_TYPES: dict[str, tuple[str, frozenset[str]]] = {
     ),
     ".scl": ("text/x-scl", frozenset({"text/x-scl", "text/plain"})),
     ".awl": ("text/x-awl", frozenset({"text/x-awl", "text/plain"})),
-    ".json": ("application/json", frozenset({"application/json", "text/plain"})),
     ".png": ("image/png", frozenset({"image/png"})),
     ".jpg": ("image/jpeg", frozenset({"image/jpeg"})),
     ".jpeg": ("image/jpeg", frozenset({"image/jpeg"})),
@@ -162,9 +161,6 @@ def _contents_match(extension: str, content: bytes) -> bool:
     if extension == ".xml":
         head = _stripped_head(content)
         return head.startswith(b"<?xml") or head.startswith(b"<")
-    if extension == ".json":
-        head = _stripped_head(content)
-        return head.startswith(b"{") or head.startswith(b"[")
     if extension in {".csv", ".tsv", ".scl", ".awl"}:
         return _is_utf8_text(content)
     return True

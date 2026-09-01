@@ -143,7 +143,7 @@ def test_a_real_ooxml_container_is_accepted():
     assert result.mime_type.endswith("wordprocessingml.document")
 
 
-@pytest.mark.parametrize("filename", ["script.sh", "noextension", "image.bmp"])
+@pytest.mark.parametrize("filename", ["script.sh", "noextension", "image.bmp", "facts.json"])
 def test_unsupported_extensions_are_refused(filename):
     with pytest.raises(UnsupportedFileType):
         _validate(filename=filename, declared_mime_type=None, content=b"data")

@@ -17,7 +17,7 @@ from app.engineering_models import PackageAssignment, PackageDocument
 from app.models import Chunk, Document, DocumentProfile, DocumentRelation, IngestionJob
 from app.providers.storage import StorageBackend
 from app.services.engineering import drop_document_evidence
-from app.services.package_intake import delete_adapter_artifacts
+from app.services.package_intake import delete_adapter_artifacts, delete_generated_package
 from app.services.vector_store import DocumentVectorStore, VectorStoreService
 
 logger = logging.getLogger(__name__)
@@ -109,6 +109,7 @@ async def delete_document(
             PackageDocument.tenant_id == tenant_id, PackageDocument.document_id == document_id
         )
     )
+    await delete_generated_package(session, tenant_id=tenant_id, document=document)
 
     if not already_deleted:
         document.deleted_at = datetime.now(UTC)
