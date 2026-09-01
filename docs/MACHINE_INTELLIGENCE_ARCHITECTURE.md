@@ -43,8 +43,10 @@ Adapter families for that slice:
 | Live TIA Openness or EPLAN API in workers | deferred |
 
 Exact TIA/S7 fixture format: **SimaticML block XML + hardware/tag/I/O
-spreadsheets + SCL source listings**, authored synthetically so CI never
-needs licensed Siemens software. See [Exact TIA/S7 fixture format](#exact-tias7-fixture-format).
+spreadsheets + SCL source listings**. The large package is synthetic so CI
+never needs licensed Siemens software; SIN-99 also commits one legally
+cleared TIA-exported SimaticML **conformance sample** so the parser is not
+only tested against its own generator. See [Exact TIA/S7 fixture format](#exact-tias7-fixture-format).
 
 ## What was inspected
 
@@ -256,7 +258,28 @@ Research notes may mention them; `pyproject.toml` must not.
 ## Adapter family classification
 
 Required by SIN-88: each family is exactly one of **supported in first slice**,
-**supported via required export**, **experimental**, or **deferred**.
+**supported via required export**, **experimental**, or **deferred**. Nested
+notes (for example OCR on photos, or binary S5 inside the S5 family) do not
+give a family a second classification.
+
+### Family classification table
+
+| Family id | Family | Classification |
+|---|---|---|
+| A | Container and manifest | supported in first slice |
+| B | Siemens TIA / S7 | supported via required export |
+| C | Legacy Siemens S5 / STEP 5 | supported via required export |
+| D | Generic IEC 61131-3 / PLCopen XML | experimental |
+| E | PDF and document | supported in first slice |
+| F | Spreadsheet and tabular | supported in first slice |
+| G | Image and mobile-photo | supported in first slice |
+| H | Electrical schematic | supported via required export |
+| I | Pneumatic / hydraulic | deferred |
+
+Exported TIA/S7 *members* (SimaticML, SCL, tag/I/O lists) are first-slice
+inputs of family B. That does not reclassify the family: native TIA projects
+still require an export step. Family G is first-slice evidence; OCR on those
+images stays experimental and is not a second family class.
 
 ### A. Container and manifest
 
@@ -354,13 +377,34 @@ Locked for SIN-99 and SIN-93:
 **Not in the fixture:** `.zap`, `.ap17`/project directories, live Openness
 payloads, encrypted libraries.
 
-Authoring default: **hand-authored / generator-produced synthetic SimaticML**
-checked into `evaluation/datasets/` (exact path chosen in SIN-99). CI and
-Railway smoke never install TIA.
+### SimaticML dialect conformance
 
-Optional offline authoring: a human with a licensed TIA copy may export
-real SimaticML to seed the generator. That is a laptop tool, not a worker
-dependency. See [Human decisions](#human-decisions).
+The large conveyor-line package is **synthetic** so CI can scale without
+TIA. That is not enough by itself: a generator and a parser co-evolved from
+the same invented XML would pass SIN-93/SIN-96 while failing on files a
+customer exported from TIA Portal.
+
+SIN-99 therefore commits **two** PLC XML sources that share one dialect
+contract:
+
+1. **Conformance sample (required).** One legally cleared, anonymized
+   SimaticML block export produced by TIA Portal / Openness export (not by
+   our generator). Provenance recorded beside the file: TIA version, export
+   command or UI path, date, and a statement that it contains no customer
+   IP. Strip names/comments as needed; keep Siemens namespaces, root
+   elements, and block/network structure. A single OB or FB is enough.
+2. **Synthetic package (required).** Generator output for the 10–12 section
+   line. It must use the same namespaces and required elements as the
+   conformance sample. The machine-readable oracle is authored against this
+   package.
+
+SIN-93 tests parse both. SIN-96 may not claim “production TIA export
+compatibility” until the conformance sample is in the repository and the
+parser accepts it. Runtime and CI still **do not install TIA**; obtaining
+the sample is an offline owner action. See [Human decisions](#human-decisions).
+
+If no cleared export can be supplied, stop before SIN-93 rather than
+inventing a dialect. SIN-89 (schema) is not blocked.
 
 ## EPLAN native-versus-PDF strategy
 
@@ -498,11 +542,10 @@ Recommended execution:
 
 1. **SIN-89** — canonical Postgres model, Alembic, tenant-isolation tests.
    Can proceed immediately after merge. Does not need the full zip fixture.
-2. **SIN-99** — versioned reference package + machine-readable oracle. May
-   proceed in parallel with SIN-89 once object names in this document are
-   stable; the oracle should use the SIN-89 table/field names as they land.
-   If they land in parallel, SIN-99 targets the object list above and
-   follows up if SIN-89 renames columns.
+2. **SIN-99** — versioned reference package + machine-readable oracle **and**
+   the SimaticML conformance sample (or a provenance placeholder until the
+   owner supplies the cleared export). May proceed in parallel with SIN-89
+   once object names in this document are stable.
 3. **SIN-100** — adapter framework + safe zip unpack on the **existing**
    upload/storage/worker path. Needs SIN-89 types (where observations land)
    and SIN-99 bytes (what routing is tested against). Capability stubs for
@@ -510,7 +553,9 @@ Recommended execution:
    parsers stay in later issues.
 4. **SIN-90** — classification and package assignment.
 5. **SIN-91 / SIN-92** — entities and connectivity.
-6. **SIN-93** — TIA/S7 normalized PLC path (SimaticML + listings).
+6. **SIN-93** — TIA/S7 normalized PLC path. Parses both the conformance
+   sample and the synthetic package. Blocked if the cleared export is still
+   missing.
 7. **SIN-94** — PLC-to-physical mapping.
 8. **SIN-95** — deterministic behavior chains.
 9. **SIN-96** — evaluation gates on the SIN-99 oracle.
@@ -527,7 +572,7 @@ Identified **before** implementation continues:
 
 | Tool | Required at runtime? | Required in CI? | Notes |
 |---|---|---|---|
-| TIA Portal / Openness | **No** | **No** | Optional offline fixture authoring by a human. |
+| TIA Portal / Openness | **No** | **No** | Offline owner action: produce the SIN-99 SimaticML conformance sample. Not a worker or CI install. |
 | EPLAN Electric P8 / API | **No** | **No** | First slice is PDF + XLSX. |
 | STEP 5 | **No** | **No** | Text exports only. |
 | Siemens licence for SimaticML schema | Runtime parses **exported files** the customer already produced. We do not redistribute TIA. Synthetic XML in CI is original work. | | |
@@ -549,15 +594,19 @@ truth cannot be established. This audit resolves those as follows:
 | Question | Decision | Needs a further human stop? |
 |---|---|---|
 | Live TIA Openness in workers? | **No.** Exports only. | No, unless the owner later demands live Openness. |
-| Licensed TIA to *author* the fixture? | **Optional and offline.** CI default is synthetic XML. | **Yes, if** the owner insists the oracle must be produced from a real TIA project rather than a generator. Until then, synthetic is the plan. |
+| Licensed TIA to *author* the bulk fixture? | **No.** The large package is synthetic. | No. |
+| Cleared TIA SimaticML conformance sample? | **Required** for SIN-93/SIN-96 compatibility claims. One anonymized block export, committed with provenance. CI still does not install TIA. | **Yes, if** the owner cannot supply a cleared export. Then stop before SIN-93; do not invent a dialect. |
 | Native EPLAN vs PDF? | PDF + XLSX lists for first slice. | No. |
 | S5 binary in first slice? | **No.** | No. |
 | `simaticml-decoder` as a product dependency? | **No.** Custom XML adapter. | No. Switching to it later is an isolated adapter change, not an architecture change. |
 | PLCopen as the fixture PLC format? | **No.** | No. |
 | Graph database? | **No.** | No. |
-| Can ground truth be established without vendor IDEs? | **Yes**, via a generator and a committed oracle. | Only if synthetic SimaticML is rejected as insufficiently “real”. |
+| Can the *scale* oracle be established without vendor IDEs? | **Yes**, via the synthetic generator and committed oracle. | No. |
+| Can *TIA-export compatibility* be claimed without a real export? | **No.** That is what the conformance sample is for. | Yes — only if the sample cannot be obtained. |
 
 Implementation of SIN-89 may proceed on these decisions without waiting.
+SIN-99 should add a placeholder path and provenance template for the
+conformance sample even if the XML arrives later. SIN-93 waits for the file.
 
 ## What SIN-88 does not do
 
