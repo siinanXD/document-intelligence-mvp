@@ -143,10 +143,29 @@ def test_a_real_ooxml_container_is_accepted():
     assert result.mime_type.endswith("wordprocessingml.document")
 
 
-@pytest.mark.parametrize("filename", ["archive.zip", "script.sh", "noextension", "image.png"])
+@pytest.mark.parametrize("filename", ["script.sh", "noextension", "image.bmp"])
 def test_unsupported_extensions_are_refused(filename):
     with pytest.raises(UnsupportedFileType):
         _validate(filename=filename, declared_mime_type=None, content=b"data")
+
+
+def test_a_zip_png_xml_and_scl_are_accepted():
+    from app.evaluation.machine_intelligence.artifacts import minimal_png
+
+    zip_bytes = b"PK\x03\x04" + b"\x00" * 40
+    zip_upload = _validate(
+        filename="pkg.zip", declared_mime_type="application/zip", content=zip_bytes
+    )
+    assert zip_upload.mime_type == "application/zip"
+    png = minimal_png()
+    png_upload = _validate(filename="cab.png", declared_mime_type="image/png", content=png)
+    assert png_upload.mime_type == "image/png"
+    xml = b"<?xml version='1.0'?><Document/>"
+    xml_upload = _validate(filename="block.xml", declared_mime_type="application/xml", content=xml)
+    assert xml_upload.mime_type == "application/xml"
+    scl = b"FUNCTION_BLOCK FB_ConveyorCtrl\nEND_FUNCTION_BLOCK\n"
+    scl_upload = _validate(filename="ctrl.scl", declared_mime_type="text/plain", content=scl)
+    assert scl_upload.mime_type == "text/x-scl"
 
 
 def test_an_empty_file_is_refused():

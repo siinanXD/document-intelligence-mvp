@@ -61,6 +61,22 @@ SUPPORTED_TYPES: dict[str, tuple[str, frozenset[str]]] = {
     ".htm": ("text/html", frozenset({"text/html"})),
     ".md": ("text/markdown", frozenset({"text/markdown", "text/plain"})),
     ".txt": ("text/plain", frozenset({"text/plain"})),
+    ".zip": (
+        "application/zip",
+        frozenset({"application/zip", "application/x-zip-compressed"}),
+    ),
+    ".xml": ("application/xml", frozenset({"application/xml", "text/xml"})),
+    ".csv": ("text/csv", frozenset({"text/csv", "text/plain"})),
+    ".tsv": (
+        "text/tab-separated-values",
+        frozenset({"text/tab-separated-values", "text/plain"}),
+    ),
+    ".scl": ("text/x-scl", frozenset({"text/x-scl", "text/plain"})),
+    ".awl": ("text/x-awl", frozenset({"text/x-awl", "text/plain"})),
+    ".json": ("application/json", frozenset({"application/json", "text/plain"})),
+    ".png": ("image/png", frozenset({"image/png"})),
+    ".jpg": ("image/jpeg", frozenset({"image/jpeg"})),
+    ".jpeg": ("image/jpeg", frozenset({"image/jpeg"})),
 }
 
 # Leading bytes that must be present for the formats that have a signature.
@@ -70,6 +86,10 @@ _MAGIC: dict[str, bytes] = {
     ".docx": b"PK\x03\x04",
     ".pptx": b"PK\x03\x04",
     ".xlsx": b"PK\x03\x04",
+    ".zip": b"PK\x03\x04",
+    ".png": b"\x89PNG\r\n\x1a\n",
+    ".jpg": b"\xff\xd8\xff",
+    ".jpeg": b"\xff\xd8\xff",
 }
 
 _UNSAFE_FILENAME_CHARS = re.compile(r"[^A-Za-z0-9._-]+")
@@ -110,6 +130,44 @@ def safe_filename(filename: str) -> str:
     if not base:
         base = "upload"
     return base[:200]
+
+
+def mime_for_extension(filename: str) -> str:
+    """Canonical MIME for a filename suffix, or octet-stream when unknown."""
+    extension = extension_of(filename)
+    spec = SUPPORTED_TYPES.get(extension)
+    if spec is None:
+        return "application/octet-stream"
+    return spec[0]
+
+
+def _is_utf8_text(content: bytes) -> bool:
+    if b"\x00" in content[:8192]:
+        return False
+    try:
+        content.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+    return True
+
+
+def _stripped_head(content: bytes) -> bytes:
+    return content.lstrip(b"\xef\xbb\xbf \t\r\n")
+
+
+def _contents_match(extension: str, content: bytes) -> bool:
+    magic = _MAGIC.get(extension)
+    if magic and not content.startswith(magic):
+        return False
+    if extension == ".xml":
+        head = _stripped_head(content)
+        return head.startswith(b"<?xml") or head.startswith(b"<")
+    if extension == ".json":
+        head = _stripped_head(content)
+        return head.startswith(b"{") or head.startswith(b"[")
+    if extension in {".csv", ".tsv", ".scl", ".awl"}:
+        return _is_utf8_text(content)
+    return True
 
 
 def extension_of(filename: str) -> str:
@@ -229,6 +287,8 @@ def validate_upload(
 
     magic = _MAGIC.get(extension)
     if magic and not content.startswith(magic):
+        raise UnsupportedFileType(f"file contents are not a valid {extension} document")
+    if not _contents_match(extension, content):
         raise UnsupportedFileType(f"file contents are not a valid {extension} document")
 
     return ValidatedUpload(
