@@ -8,6 +8,7 @@ The existing repository rules remain authoritative:
 
 1. `CLAUDE.md` — architecture, tenant isolation, providers, migrations, privacy and secrets.
 2. `docs/agent-workflow.md` — one Linear issue per branch/PR, tests, review loop and merge rules.
+3. `docs/AUTOMATIONS.md` — the guarded autonomous delivery loop: automation stages, risk policy (mandatory human gates), auto-merge eligibility, safety and cost bounds.
 
 This file adds Cloud-specific operating instructions; it does not replace those rules.
 
@@ -74,7 +75,8 @@ A secret being available does not authorize using it. Do not make paid/external 
 - Open a PR only after relevant checks pass.
 - Fix only verified review findings; do not blindly apply reviewer suggestions.
 - Keep fixes on the same issue branch/PR and rerun checks after every fix.
-- Do not merge or deploy unless the repository owner explicitly requests it.
+- Merging follows the guarded auto-merge policy in `docs/AUTOMATIONS.md`: low-risk PRs that pass the full eligibility checklist are squash auto-merged; any PR touching a mandatory human-gate category gets the `owner-approval-required` label and stops for one owner decision.
+- Do not deploy unless the repository owner explicitly requests it.
 
 ## Frontend note
 
