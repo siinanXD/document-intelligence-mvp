@@ -5,7 +5,7 @@ and relations require at least one evidence locator in the same tenant.
 Human overrides never delete the row they correct.
 """
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.engineering_models import (
@@ -48,6 +48,44 @@ _METHOD_VERSION = "sin-89"
 
 class EngineeringEvidenceError(ValueError):
     """A canonical fact was submitted without resolvable evidence."""
+
+
+_LOCATOR_REQUIREMENTS: dict[EvidenceLocatorKind, tuple[str, ...]] = {
+    EvidenceLocatorKind.chunk: ("document_id", "source_id"),
+    EvidenceLocatorKind.page: ("document_id", "page_number"),
+    EvidenceLocatorKind.sheet_cell: ("document_id", "sheet_name", "cell_range"),
+    EvidenceLocatorKind.image_region: ("document_id", "region"),
+    EvidenceLocatorKind.xml_path: ("document_id", "xml_path"),
+    EvidenceLocatorKind.line_range: ("document_id", "line_start"),
+    EvidenceLocatorKind.native_id: ("document_id", "native_object_id"),
+}
+
+
+def _locator_is_complete(
+    *,
+    locator_kind: EvidenceLocatorKind,
+    document_id,
+    source_id,
+    page_number,
+    sheet_name,
+    cell_range,
+    xml_path,
+    line_start,
+    native_object_id,
+    region: dict | None,
+) -> bool:
+    values = {
+        "document_id": document_id,
+        "source_id": source_id,
+        "page_number": page_number,
+        "sheet_name": sheet_name,
+        "cell_range": cell_range,
+        "xml_path": xml_path,
+        "line_start": line_start,
+        "native_object_id": native_object_id,
+        "region": region if region else None,
+    }
+    return all(values[field] is not None for field in _LOCATOR_REQUIREMENTS[locator_kind])
 
 
 class EngineeringIsolationError(ValueError):
@@ -234,6 +272,19 @@ async def record_evidence(
     native_object_id: str | None = None,
     region: dict | None = None,
 ) -> EvidenceReference:
+    if not _locator_is_complete(
+        locator_kind=locator_kind,
+        document_id=document_id,
+        source_id=source_id,
+        page_number=page_number,
+        sheet_name=sheet_name,
+        cell_range=cell_range,
+        xml_path=xml_path,
+        line_start=line_start,
+        native_object_id=native_object_id,
+        region=region,
+    ):
+        raise EngineeringEvidenceError("evidence locator is incomplete")
     evidence = EvidenceReference(
         tenant_id=tenant_id,
         locator_kind=locator_kind,
@@ -377,12 +428,16 @@ async def create_canonical_entity(
     return entity
 
 
-async def get_entity(session: AsyncSession, *, tenant_id, entity_id) -> EngineeringEntity | None:
-    result = await session.execute(
-        select(EngineeringEntity).where(
-            EngineeringEntity.id == entity_id, EngineeringEntity.tenant_id == tenant_id
-        )
-    )
+async def get_entity(
+    session: AsyncSession, *, tenant_id, entity_id, package_id=None
+) -> EngineeringEntity | None:
+    clauses = [
+        EngineeringEntity.id == entity_id,
+        EngineeringEntity.tenant_id == tenant_id,
+    ]
+    if package_id is not None:
+        clauses.append(EngineeringEntity.package_id == package_id)
+    result = await session.execute(select(EngineeringEntity).where(*clauses))
     return result.scalars().first()
 
 
@@ -411,9 +466,19 @@ async def create_canonical_relation(
     attributes: dict | None = None,
 ) -> EngineeringRelation:
     await _package_or_raise(session, tenant_id=tenant_id, package_id=package_id)
-    if await get_entity(session, tenant_id=tenant_id, entity_id=source_entity_id) is None:
+    if (
+        await get_entity(
+            session, tenant_id=tenant_id, entity_id=source_entity_id, package_id=package_id
+        )
+        is None
+    ):
         raise EngineeringIsolationError("source entity not found")
-    if await get_entity(session, tenant_id=tenant_id, entity_id=target_entity_id) is None:
+    if (
+        await get_entity(
+            session, tenant_id=tenant_id, entity_id=target_entity_id, package_id=package_id
+        )
+        is None
+    ):
         raise EngineeringIsolationError("target entity not found")
     relation = EngineeringRelation(
         tenant_id=tenant_id,
@@ -466,6 +531,20 @@ async def create_relation_candidate(
     attributes: dict | None = None,
 ) -> EngineeringRelationCandidate:
     await _package_or_raise(session, tenant_id=tenant_id, package_id=package_id)
+    if source_entity_id is not None and (
+        await get_entity(
+            session, tenant_id=tenant_id, entity_id=source_entity_id, package_id=package_id
+        )
+        is None
+    ):
+        raise EngineeringIsolationError("source entity not found")
+    if target_entity_id is not None and (
+        await get_entity(
+            session, tenant_id=tenant_id, entity_id=target_entity_id, package_id=package_id
+        )
+        is None
+    ):
+        raise EngineeringIsolationError("target entity not found")
     candidate = EngineeringRelationCandidate(
         tenant_id=tenant_id,
         package_id=package_id,
@@ -747,3 +826,65 @@ async def record_behavior_claim(
     )
     await session.flush()
     return claim
+
+
+_GROUNDED_SUBJECTS = (
+    (EvidenceSubjectKind.relation, EngineeringRelation),
+    (EvidenceSubjectKind.relation_candidate, EngineeringRelationCandidate),
+    (EvidenceSubjectKind.behavior_claim, DerivedBehaviorClaim),
+    (EvidenceSubjectKind.conflict, EngineeringConflict),
+    (EvidenceSubjectKind.unsupported_construct, UnsupportedConstruct),
+    (EvidenceSubjectKind.entity_candidate, EngineeringEntityCandidate),
+    (EvidenceSubjectKind.package_assignment, PackageAssignment),
+    (EvidenceSubjectKind.entity, EngineeringEntity),
+)
+
+
+async def drop_document_evidence(session: AsyncSession, *, tenant_id, document_id) -> None:
+    """Remove locators for one document and drop subjects that lose their last evidence."""
+    affected = (
+        await session.execute(
+            select(EvidenceBinding.subject_kind, EvidenceBinding.subject_id).where(
+                EvidenceBinding.tenant_id == tenant_id,
+                EvidenceBinding.evidence_id.in_(
+                    select(EvidenceReference.id).where(
+                        EvidenceReference.tenant_id == tenant_id,
+                        EvidenceReference.document_id == document_id,
+                    )
+                ),
+            )
+        )
+    ).all()
+    await session.execute(
+        delete(EvidenceReference).where(
+            EvidenceReference.tenant_id == tenant_id,
+            EvidenceReference.document_id == document_id,
+        )
+    )
+    await session.flush()
+    remaining_by_kind: dict[EvidenceSubjectKind, set] = {}
+    for kind, subject_id in affected:
+        remaining_by_kind.setdefault(kind, set()).add(subject_id)
+    for kind, model in _GROUNDED_SUBJECTS:
+        ids = remaining_by_kind.get(kind)
+        if not ids:
+            continue
+        still_bound = set(
+            (
+                await session.execute(
+                    select(EvidenceBinding.subject_id).where(
+                        EvidenceBinding.tenant_id == tenant_id,
+                        EvidenceBinding.subject_kind == kind,
+                        EvidenceBinding.subject_id.in_(ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        unbound = ids - still_bound
+        if unbound:
+            await session.execute(
+                delete(model).where(model.tenant_id == tenant_id, model.id.in_(unbound))
+            )
+    await session.flush()

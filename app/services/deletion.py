@@ -13,9 +13,10 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.engineering_models import EvidenceReference, PackageAssignment, PackageDocument
+from app.engineering_models import PackageAssignment, PackageDocument
 from app.models import Chunk, Document, DocumentProfile, DocumentRelation, IngestionJob
 from app.providers.storage import StorageBackend
+from app.services.engineering import drop_document_evidence
 from app.services.vector_store import DocumentVectorStore, VectorStoreService
 
 logger = logging.getLogger(__name__)
@@ -104,12 +105,7 @@ async def delete_document(
             PackageDocument.tenant_id == tenant_id, PackageDocument.document_id == document_id
         )
     )
-    await session.execute(
-        delete(EvidenceReference).where(
-            EvidenceReference.tenant_id == tenant_id,
-            EvidenceReference.document_id == document_id,
-        )
-    )
+    await drop_document_evidence(session, tenant_id=tenant_id, document_id=document_id)
 
     if not already_deleted:
         document.deleted_at = datetime.now(UTC)

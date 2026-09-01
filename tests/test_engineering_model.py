@@ -11,6 +11,7 @@ from app.engineering_models import (
     EngineeringRelationKind,
     EntityKind,
     EvidenceLocatorKind,
+    EvidenceReference,
     EvidenceSubjectKind,
     PackageDocument,
 )
@@ -382,3 +383,105 @@ async def test_deleting_a_document_drops_package_membership(
         db_session, tenant_id=tenant.id, package_id=package.id
     )
     assert still_package is not None
+
+
+async def test_incomplete_evidence_locator_is_rejected(db_session, tenant, make_document):
+    _package, document, _evidence = await _package_with_doc(db_session, tenant, make_document)
+    with pytest.raises(EngineeringEvidenceError):
+        await engineering.record_evidence(
+            db_session,
+            tenant_id=tenant.id,
+            locator_kind=EvidenceLocatorKind.page,
+            document_id=document.id,
+        )
+    db_session.add(
+        EvidenceReference(
+            tenant_id=tenant.id,
+            locator_kind=EvidenceLocatorKind.page,
+            document_id=document.id,
+        )
+    )
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
+
+
+async def test_relations_cannot_cross_packages_in_the_same_tenant(
+    db_session, tenant, make_document
+):
+    package_a, _doc_a, evidence_a = await _package_with_doc(db_session, tenant, make_document)
+    package_b, _doc_b, evidence_b = await _package_with_doc(db_session, tenant, make_document)
+    motor_a = await engineering.create_canonical_entity(
+        db_session,
+        tenant_id=tenant.id,
+        package_id=package_a.id,
+        entity_kind=EntityKind.component,
+        canonical_name="M1",
+        evidence_ids=[evidence_a.id],
+    )
+    motor_b = await engineering.create_canonical_entity(
+        db_session,
+        tenant_id=tenant.id,
+        package_id=package_b.id,
+        entity_kind=EntityKind.component,
+        canonical_name="M2",
+        evidence_ids=[evidence_b.id],
+    )
+    with pytest.raises(engineering.EngineeringIsolationError):
+        await engineering.create_canonical_relation(
+            db_session,
+            tenant_id=tenant.id,
+            package_id=package_a.id,
+            relation_kind=EngineeringRelationKind.connected_to,
+            source_entity_id=motor_a.id,
+            target_entity_id=motor_b.id,
+            evidence_ids=[evidence_a.id],
+        )
+
+
+async def test_deleting_a_document_drops_facts_that_lose_their_last_evidence(
+    db_session, tenant, make_document, tmp_path
+):
+    package, document, evidence = await _package_with_doc(db_session, tenant, make_document)
+    other = await make_document(tenant)
+    other_evidence = await engineering.record_evidence(
+        db_session,
+        tenant_id=tenant.id,
+        locator_kind=EvidenceLocatorKind.sheet_cell,
+        document_id=other.id,
+        sheet_name="BOM",
+        cell_range="A1",
+    )
+    only_here = await engineering.create_canonical_entity(
+        db_session,
+        tenant_id=tenant.id,
+        package_id=package.id,
+        entity_kind=EntityKind.component,
+        canonical_name="M1",
+        evidence_ids=[evidence.id],
+    )
+    also_elsewhere = await engineering.create_canonical_entity(
+        db_session,
+        tenant_id=tenant.id,
+        package_id=package.id,
+        entity_kind=EntityKind.component,
+        canonical_name="M2",
+        evidence_ids=[evidence.id, other_evidence.id],
+    )
+    storage = LocalStorageBackend(tmp_path)
+    await storage.put(document.storage_key, b"%PDF-1.4 fake")
+    await delete_document(db_session, storage, tenant_id=tenant.id, document_id=document.id)
+    assert (
+        await engineering.get_entity(db_session, tenant_id=tenant.id, entity_id=only_here.id)
+        is None
+    )
+    kept = await engineering.get_entity(
+        db_session, tenant_id=tenant.id, entity_id=also_elsewhere.id
+    )
+    assert kept is not None
+    leftover = await engineering.list_evidence_for(
+        db_session,
+        tenant_id=tenant.id,
+        subject_kind=EvidenceSubjectKind.entity,
+        subject_id=also_elsewhere.id,
+    )
+    assert [row.id for row in leftover] == [other_evidence.id]

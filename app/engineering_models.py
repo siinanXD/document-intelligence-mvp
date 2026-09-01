@@ -414,6 +414,12 @@ class EngineeringEntity(Base):
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "id", name="uq_engineering_entities_tenant_id_id"),
+        UniqueConstraint(
+            "tenant_id",
+            "package_id",
+            "id",
+            name="uq_engineering_entities_tenant_package_id",
+        ),
         ForeignKeyConstraint(
             ["tenant_id", "package_id"],
             ["machine_packages.tenant_id", "machine_packages.id"],
@@ -522,14 +528,22 @@ class EngineeringRelation(Base):
             ondelete="CASCADE",
         ),
         ForeignKeyConstraint(
-            ["tenant_id", "source_entity_id"],
-            ["engineering_entities.tenant_id", "engineering_entities.id"],
+            ["tenant_id", "package_id", "source_entity_id"],
+            [
+                "engineering_entities.tenant_id",
+                "engineering_entities.package_id",
+                "engineering_entities.id",
+            ],
             name="fk_engineering_relations_tenant_source",
             ondelete="CASCADE",
         ),
         ForeignKeyConstraint(
-            ["tenant_id", "target_entity_id"],
-            ["engineering_entities.tenant_id", "engineering_entities.id"],
+            ["tenant_id", "package_id", "target_entity_id"],
+            [
+                "engineering_entities.tenant_id",
+                "engineering_entities.package_id",
+                "engineering_entities.id",
+            ],
             name="fk_engineering_relations_tenant_target",
             ondelete="CASCADE",
         ),
@@ -593,14 +607,22 @@ class EngineeringRelationCandidate(Base):
             ondelete="SET NULL",
         ),
         ForeignKeyConstraint(
-            ["tenant_id", "source_entity_id"],
-            ["engineering_entities.tenant_id", "engineering_entities.id"],
+            ["tenant_id", "package_id", "source_entity_id"],
+            [
+                "engineering_entities.tenant_id",
+                "engineering_entities.package_id",
+                "engineering_entities.id",
+            ],
             name="fk_relation_candidates_tenant_source",
             ondelete="SET NULL",
         ),
         ForeignKeyConstraint(
-            ["tenant_id", "target_entity_id"],
-            ["engineering_entities.tenant_id", "engineering_entities.id"],
+            ["tenant_id", "package_id", "target_entity_id"],
+            [
+                "engineering_entities.tenant_id",
+                "engineering_entities.package_id",
+                "engineering_entities.id",
+            ],
             name="fk_relation_candidates_tenant_target",
             ondelete="SET NULL",
         ),
@@ -659,6 +681,23 @@ class EvidenceReference(Base):
         CheckConstraint(
             "line_end IS NULL OR line_start IS NULL OR line_end >= line_start",
             name="ck_evidence_references_line_range",
+        ),
+        CheckConstraint(
+            "("
+            "(locator_kind = 'chunk' AND document_id IS NOT NULL AND source_id IS NOT NULL) OR "
+            "(locator_kind = 'page' AND document_id IS NOT NULL AND page_number IS NOT NULL) OR "
+            "(locator_kind = 'sheet_cell' AND document_id IS NOT NULL "
+            "AND sheet_name IS NOT NULL AND cell_range IS NOT NULL) OR "
+            "(locator_kind = 'image_region' AND document_id IS NOT NULL "
+            "AND region <> '{}'::jsonb) OR "
+            "(locator_kind = 'xml_path' AND document_id IS NOT NULL "
+            "AND xml_path IS NOT NULL) OR "
+            "(locator_kind = 'line_range' AND document_id IS NOT NULL "
+            "AND line_start IS NOT NULL) OR "
+            "(locator_kind = 'native_id' AND document_id IS NOT NULL "
+            "AND native_object_id IS NOT NULL)"
+            ")",
+            name="ck_evidence_references_locator",
         ),
         Index("ix_evidence_references_tenant_document", "tenant_id", "document_id"),
     )
