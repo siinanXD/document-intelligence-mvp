@@ -34,6 +34,7 @@ in `app/providers/prompts.py`:
 
 * `ask_grounded` / `v1` — grounded `/ask`
 * `document_profile` / `v1` — worker profile extraction
+* `generation_eval_judge` / `v1` — optional evaluation judge (never a release gate)
 
 Changing the instructions requires changing `version` (and the frozen hash in
 `tests/test_prompts.py`). Future prompts such as `component_extraction` add
@@ -94,7 +95,6 @@ other debug flag. See `docs/PRIVACY.md`.
 
 ## SIN-74
 
-`app.evaluation.generation.generation_eval_record` projects an `AskResult` into
-the fields SIN-74 will persist (case id, prompt identity, provider/model,
-tokens, latency, cost, cited source ids, finish status, trace id). This
-milestone does not score answers.
+Generation evaluation is `--track generation` on the existing evaluation
+package. `generation_eval_record` is the privacy-safe projection used by that
+track. See `docs/EVALUATION.md`.

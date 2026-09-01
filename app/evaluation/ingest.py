@@ -7,7 +7,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.evaluation.cases import DatasetDocument, EvalDataset
+from app.evaluation.cases import DatasetDocument, EvalDataset, GenerationDataset
 from app.evaluation.formats import build_file
 from app.evaluation.parser import EvaluationParser
 from app.models import Chunk, Document, Tenant
@@ -34,7 +34,7 @@ async def ensure_tenant(session: AsyncSession, *, key: str) -> Tenant:
 async def ingest_dataset(
     session: AsyncSession,
     storage: StorageBackend,
-    dataset: EvalDataset,
+    dataset: EvalDataset | GenerationDataset,
     embeddings: EmbeddingProvider,
     vector_store: VectorStoreService,
     *,
@@ -69,7 +69,7 @@ async def _ingest_one(
     storage: StorageBackend,
     spec: DatasetDocument,
     *,
-    dataset: EvalDataset,
+    dataset: EvalDataset | GenerationDataset,
     tenant: Tenant,
     embeddings: EmbeddingProvider,
     vector_store: VectorStoreService,

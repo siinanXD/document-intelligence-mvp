@@ -41,6 +41,16 @@ reconcile them, average them, or pick one silently.
 )
 
 
+GENERATION_EVAL_JUDGE = Prompt(
+    name="generation_eval_judge",
+    version="v1",
+    system="""\
+You score whether an answer is grounded in the supplied sources and \
+whether it covers the expected facts. Use only the sources. Do not \
+invent. Scores are 0 to 1. Missing information stays missing.""",
+)
+
+
 DOCUMENT_PROFILE = Prompt(
     name="document_profile",
     version="v1",

@@ -1,25 +1,31 @@
-# Retrieval evaluation
+# Retrieval and generation evaluation
 
-SIN-75 measures whether the existing search services retrieve the correct
-evidence. It is not an answer-quality benchmark (SIN-74) and it does not
-parse electrical schematics or PLC programs.
+SIN-75 measures whether search retrieves the correct evidence. SIN-74 measures
+whether `/ask` answers are grounded, cited and honest about missing or
+conflicting evidence. Neither track parses electrical schematics or PLC
+programs.
 
-There was no evaluation harness on `main` before this work. The runner calls
-`app.services.retrieval.search` and `app.services.lexical.search` on documents
-ingested through `ingest_upload` and `process_job`.
+There was no evaluation harness on `main` before SIN-75. The runners call the
+real `search`, `lexical.search` and `ask` services on documents ingested
+through `ingest_upload` and `process_job`.
 
 ## Layout
 
 ```
 evaluation/
-  datasets/retrieval-v1/   versioned golden corpus
+  datasets/retrieval-v1/    versioned retrieval golden corpus
+  datasets/generation-v1/   grounded-answer cases over the same documents
   baselines/retrieval-v1.json
-app/evaluation/            metrics, ingest, runner, CLI
+  baselines/generation-v1.json
+app/evaluation/             metrics, ingest, runners, CLI
 ```
 
-`track` on the dataset and on each case is `retrieval`. Later tracks
+`track` on each dataset is `retrieval` or `generation`. Later tracks
 (document classification, connection extraction, PLC mapping, …) add a new
 dataset directory and metric functions; they should not replace this package.
+
+Generation-v1 reuses the retrieval-v1 synthetic files via relative paths. It
+does not copy customer data and it does not store generated answers.
 
 ## Commands
 
@@ -31,17 +37,38 @@ Deterministic CI evaluation (hashing embeddings, no paid provider):
 python -m app.evaluation
 python -m app.evaluation --mode semantic
 python -m app.evaluation --mode lexical
+python -m app.evaluation --track generation
 python -m app.evaluation --no-compare
 ```
 
-Optional live-provider run (never ordinary CI):
+`--track generation` uses the scripted LLM (`evaluation/scripted-grounded`).
+That oracle may only cite source ids that were actually supplied in the prompt,
+and it only emits gold facts when the matching evidence was retrieved. It is a
+pipeline check, not a live-model quality target.
+
+Optional live-provider runs (never ordinary CI):
 
 ```bash
-python -m app.evaluation --embeddings live --no-compare --output evaluation/reports/live.json
+python -m app.evaluation --embeddings live --no-compare --output evaluation/reports/live-retrieval.json
+
+# Bounded live generation. Case cap defaults to 8. Dollar cap defaults to
+# $0.50 only when LLM_INPUT_USD_PER_MILLION and LLM_OUTPUT_USD_PER_MILLION
+# are both set (generation + judge usage). Embeddings are bounded by cases.
+python -m app.evaluation --track generation --llm live --embeddings live \
+  --output evaluation/reports/live-generation.json
+
+# Optional LLM-judge scores (groundedness/completeness). Fail-open, not a gate.
+python -m app.evaluation --track generation --llm live --judge live \
+  --max-cases 5 --max-cost-usd 0.25 \
+  --output evaluation/reports/live-generation-judge.json
 ```
 
-Exit codes: `0` pass, `1` quality-threshold regression, `2` cross-tenant leakage
-or other hard invariant.
+Live generation and live judge default to `--no-compare` against the scripted
+hashing baseline. Record a separate live baseline if you want to compare live
+runs to each other.
+
+Exit codes: `0` pass, `1` quality-threshold regression, `2` citation leakage,
+cross-tenant evidence, unresolvable citations or other hard invariant.
 
 ## Corpus
 
@@ -50,18 +77,30 @@ Packaging Line PL-04 (tenant A) and PL-99 (tenant B). Formats: PDF, DOCX,
 XLSX, Markdown. Languages: English and German. Identifiers such as M3, K17,
 B17, PL-04, Rev 2.3 and 6ES7315-2EH14-0AB0 appear as written text only.
 
-Relevance judgments are `{document, contains}` pairs, not model answers.
-Source ids are assigned at ingest (`{document_id}:{ordinal}`); the runner
-resolves judgments to those ids after chunking.
+Retrieval relevance judgments are `{document, contains}` pairs, not model
+answers. Source ids are assigned at ingest (`{document_id}:{ordinal}`); the
+runner resolves judgments to those ids after chunking.
 
-## Embeddings
+Generation-v1 adds expected facts, `answerable`, `expected_conflict`,
+forbidden claims and forbidden documents on the same fixtures. Gold labels are
+independent of any generated answer.
+
+## Embeddings and LLMs
 
 - **hashing** (`evaluation` / `hashing-bow` / `v1`, 64 dimensions) is the
-  default. Signed hashing-trick unigrams and bigrams. Deterministic, offline,
-  sensitive to ranking and chunking changes.
-- **live** uses `get_embedding_provider()` from settings. Opt-in only.
+  default embedder. Signed hashing-trick unigrams and bigrams. Deterministic,
+  offline, sensitive to ranking and chunking changes.
+- **scripted** (`evaluation` / `scripted-grounded`) is the default generation
+  LLM. No network.
+- **live** uses `get_embedding_provider()` / `get_llm_provider()` from
+  settings. Opt-in only. Bounded by `--max-cases` (default 8 when live).
+  `--max-cost-usd` applies to generation and judge usage only, and only
+  when both LLM price settings are configured. Passing `--max-cost-usd`
+  without those prices is an error. Embedding spend is bounded by the
+  case cap. A truncated run (`stopped_reason` or missing cases) fails
+  baseline comparison.
 
-## Thresholds
+## Retrieval thresholds
 
 `evaluation/baselines/retrieval-v1.json` records the measured hashing run and
 the floors used for regression. Leakage must stay 0. Quality floors are the
@@ -80,11 +119,51 @@ baseline.
 A partial reindex of mixed embedding identities can collapse recall (stale
 points occupy top-k). Capture baselines on a fully reindexed corpus.
 
-## Generation evaluation (SIN-74)
+## Generation evaluation
 
-SIN-76 records generation metadata on `AskResult.generation` and retrieval
-metadata on `AskResult.retrieval`. `app.evaluation.generation.generation_eval_record`
-projects those into the fields a later generation-quality evaluator should
-persist (case id, prompt name/version, provider/model, tokens, latency, cost,
-cited source ids, finish status, trace id). This package still does not score
-answers, and this milestone does not add a generation golden dataset.
+The generation runner calls `app.services.qa.ask`. Deterministic checks run
+first and are the release gate:
+
+* every cited source id must resolve in PostgreSQL for that tenant
+* citation precision against gold evidence
+* no foreign / cross-tenant document ids (filenames are not unique)
+* no forbidden-document citations or forbidden-claim substrings
+* unanswerable cases must set `has_sufficient_evidence` false
+* conflicting cases must set `conflicting` true when both sides were retrieved
+* a truncated live run (`stopped_reason`, missing cases, or a quality metric
+  of `None` when the baseline has a floor) fails comparison
+
+Retrieval failures (gold evidence was not supplied to the model) and
+generation failures (the model was given enough evidence and still answered
+badly) are reported as separate lists. A factual answer (`has_sufficient_evidence`
+true) without resolvable citations fails the gate.
+
+The optional LLM-judge scores groundedness and completeness. It is never the
+only release decision and is not invoked from ordinary CI. Judge errors are
+fail-open: the run continues without judge scores.
+
+The JSON report identifies dataset, prompt name/version, embedding
+provider/model/version, LLM provider/model, commit, latency, tokens and cost
+when the provider supplies usage. It does not store questions, answers or
+passage text.
+
+### Generation thresholds
+
+`evaluation/baselines/generation-v1.json` records the measured
+hashing + scripted run. Hard invariants are 0: `cross_tenant_leakage`,
+`foreign_source_ids`, `unresolvable_citations`, `forbidden_claim_cases`.
+Quality floors are the measured values of that run:
+
+| citation_p | unanswerable | conflict | factual_cite | leakage |
+|---|---|---|---|---|
+| 1.0 | 1.0 | 1.0 | 1.0 | 0 |
+
+Hashing retrieval missed `gen-multi-m3-bom`; that is a retrieval failure,
+not a generation failure. All three conflict cases retrieved both sides and
+set `conflicting`. They are not live-model targets.
+
+Limitations: hashing retrieval will miss some multi-document and conflict
+cases; those are retrieval failures, not generation failures. The scripted LLM
+does not measure OpenAI answer quality. A live run is required before treating
+a prompt or model change as an answer-quality improvement. The judge is
+advisory.

@@ -1,0 +1,50 @@
+{
+  "name": "generation-v1",
+  "version": "1.0.0",
+  "track": "generation",
+  "description": "Grounded-answer cases over the retrieval-v1 synthetic corpus. No customer data. Expected facts, answerability, forbidden claims and conflict behaviour are independent of generated answers.",
+  "documents": [
+    {
+      "tenant": "tenant_a",
+      "source": "../retrieval-v1/content/tenant_a/operating_manual.txt",
+      "filename": "operating_manual.pdf",
+      "format": "pdf"
+    },
+    {
+      "tenant": "tenant_a",
+      "source": "../retrieval-v1/content/tenant_a/operating_manual_rev1.txt",
+      "filename": "operating_manual_rev1.pdf",
+      "format": "pdf"
+    },
+    {
+      "tenant": "tenant_a",
+      "source": "../retrieval-v1/content/tenant_a/maintenance_manual.txt",
+      "filename": "maintenance_manual.docx",
+      "format": "docx"
+    },
+    {
+      "tenant": "tenant_a",
+      "source": "../retrieval-v1/content/tenant_a/parts_list.tsv",
+      "filename": "parts_list.xlsx",
+      "format": "xlsx"
+    },
+    {
+      "tenant": "tenant_a",
+      "source": "../retrieval-v1/content/tenant_a/revision_notes.txt",
+      "filename": "revision_notes.md",
+      "format": "md"
+    },
+    {
+      "tenant": "tenant_a",
+      "source": "../retrieval-v1/content/tenant_a/payment_terms.txt",
+      "filename": "payment_terms.md",
+      "format": "md"
+    },
+    {
+      "tenant": "tenant_b",
+      "source": "../retrieval-v1/content/tenant_b/beta_operating_manual.txt",
+      "filename": "beta_operating_manual.md",
+      "format": "md"
+    }
+  ]
+}

@@ -245,5 +245,7 @@ def test_sin74_record_shape_is_stable():
     assert record["finish_reason"] == "stop"
     assert record["trace_id"] == "trace-1"
     assert record["request_id"] == "req-1"
+    assert record["cited_source_ids"] == []
+    assert record["model_source_ids"] == ["s1"]
     assert "answer" not in record
     assert "question" not in record
