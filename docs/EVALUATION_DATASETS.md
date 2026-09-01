@@ -15,4 +15,5 @@ licence, redistribution terms and size.
 | PLCOpen XML examples | PLC project interchange samples | PLCOpen materials are often publicly documented; still confirm the example pack | PLC variable extraction | No — not needed to score today's search |
 
 The local 30–50 case golden corpus remains the required retrieval deliverable.
-Do not download these collections in CI.
+Generation-v1 reuses those same synthetic files and adds answerability labels;
+it is not a second customer corpus. Do not download these collections in CI.
