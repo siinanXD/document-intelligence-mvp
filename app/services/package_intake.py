@@ -29,7 +29,6 @@ SEARCH_SKIPPABLE_MIMES = frozenset(
         "text/xml",
         "text/csv",
         "text/tab-separated-values",
-        "application/json",
         "text/x-scl",
         "text/x-awl",
     }
@@ -39,6 +38,11 @@ SEARCH_SKIPPABLE_MIMES = frozenset(
 def adapter_key_for(document: Document) -> str:
     """Where serialized adapter observations live, beside the original bytes."""
     return f"{document.storage_key}.adapter.json"
+
+
+def package_slug_for(document: Document) -> str:
+    """Stable tenant-scoped slug for the package generated from one archive."""
+    return f"pkg-{document.id.hex[:12]}"
 
 
 def is_search_skippable(mime_type: str) -> bool:
@@ -117,6 +121,21 @@ async def delete_adapter_artifacts(storage: StorageBackend, *, document: Documen
     await storage.delete(key)
 
 
+async def delete_generated_package(session: AsyncSession, *, tenant_id, document: Document) -> None:
+    """Remove the archive's generated package when no other members remain."""
+    package = await engineering.get_package_by_slug(
+        session, tenant_id=tenant_id, slug=package_slug_for(document)
+    )
+    if package is None:
+        return
+    remaining = await engineering.list_package_documents(
+        session, tenant_id=tenant_id, package_id=package.id
+    )
+    if remaining:
+        return
+    await engineering.delete_package(session, tenant_id=tenant_id, package_id=package.id)
+
+
 async def _ingest_zip(
     session: AsyncSession,
     storage: StorageBackend,
@@ -126,20 +145,29 @@ async def _ingest_zip(
     payload: dict[str, Any],
 ) -> None:
     members = safe_unpack(content)
-    package = await engineering.create_package(
-        session,
-        tenant_id=document.tenant_id,
-        slug=f"pkg-{document.id.hex[:12]}",
-        name="Uploaded package",
+    slug = package_slug_for(document)
+    package = await engineering.get_package_by_slug(
+        session, tenant_id=document.tenant_id, slug=slug
     )
+    if package is None:
+        package = await engineering.create_package(
+            session,
+            tenant_id=document.tenant_id,
+            slug=slug,
+            name="Uploaded package",
+        )
     package.status = PackageStatus.draft
-    await engineering.add_package_document(
-        session,
-        tenant_id=document.tenant_id,
-        package_id=package.id,
-        document_id=document.id,
-        relative_path="",
+    memberships = await engineering.list_package_documents(
+        session, tenant_id=document.tenant_id, package_id=package.id
     )
+    if all(row.document_id != document.id for row in memberships):
+        await engineering.add_package_document(
+            session,
+            tenant_id=document.tenant_id,
+            package_id=package.id,
+            document_id=document.id,
+            relative_path="",
+        )
     payload["package_id"] = str(package.id)
 
     for member in members:
