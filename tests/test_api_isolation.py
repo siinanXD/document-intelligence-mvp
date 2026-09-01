@@ -142,6 +142,14 @@ async def test_another_tenant_cannot_fetch_the_document(isolated):
     assert response.status_code == 404
 
 
+async def test_another_tenant_cannot_read_the_pipeline(isolated):
+    response = await isolated["http"].get(
+        f"/documents/{isolated['document'].id}/pipeline",
+        headers=_headers(isolated["outsider"]),
+    )
+    assert response.status_code == 404
+
+
 async def test_another_tenant_cannot_resolve_its_sources(isolated):
     http = isolated["http"]
     response = await http.get(

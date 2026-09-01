@@ -77,6 +77,7 @@ class SearchResult(BaseModel):
 
 
 class SearchResponse(BaseModel):
+    mode: str
     results: list[SearchResult]
 
 
@@ -104,7 +105,9 @@ async def search_documents(
             limit=limit,
             document_ids=request.document_ids,
         )
-        return SearchResponse(results=[SearchResult.of_lexical(hit) for hit in hits])
+        return SearchResponse(
+            mode="lexical", results=[SearchResult.of_lexical(hit) for hit in hits]
+        )
 
     try:
         embeddings = get_embedding_provider()
@@ -132,4 +135,4 @@ async def search_documents(
             status.HTTP_503_SERVICE_UNAVAILABLE, "search is temporarily unavailable"
         ) from exc
 
-    return SearchResponse(results=[SearchResult.of(hit) for hit in hits])
+    return SearchResponse(mode="semantic", results=[SearchResult.of(hit) for hit in hits])

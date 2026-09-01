@@ -100,6 +100,17 @@ async def test_an_upload_creates_document_object_and_job(api, api_tenant, db_ses
     assert job.status is JobStatus.queued
     assert job.tenant_id == api_tenant.id
 
+    pipeline = await client.get(
+        f"/documents/{document_id}/pipeline", headers={"X-Tenant-Id": str(api_tenant.id)}
+    )
+    assert pipeline.status_code == 200
+    assert pipeline.json()["current_stage"] == "parsed"
+    assert pipeline.json()["stages"][0] == {
+        "id": "uploaded",
+        "complete": True,
+        "current": False,
+    }
+
 
 async def test_the_storage_key_is_built_from_identifiers(api, api_tenant, db_session):
     client, _ = api

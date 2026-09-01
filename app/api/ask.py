@@ -13,7 +13,7 @@ from app.providers.registry import (
     get_embedding_provider,
     get_llm_provider,
 )
-from app.services.qa import AskResult, ask
+from app.services.qa import AskResult, GroundedAnswer, ask
 from app.services.vector_store import VectorStoreError, VectorStoreService
 
 logger = logging.getLogger(__name__)
@@ -37,15 +37,41 @@ class AnswerSource(BaseModel):
     score: float
 
 
+class AskDecisions(BaseModel):
+    """Why this answer looks the way it does. Identifiers and counts only."""
+
+    retrieval_mode: str | None = None
+    chunks_considered: int
+    sources_accepted: int
+    sources_rejected: int
+    prompt_name: str | None = None
+    prompt_version: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    latency_ms: float | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    estimated_cost_usd: float | None = None
+    finish_reason: str | None = None
+
+
 class AskResponse(BaseModel):
     answer: str
     has_sufficient_evidence: bool
     conflicting: bool
     sources: list[AnswerSource]
     considered: int
+    decisions: AskDecisions
 
     @classmethod
     def of(cls, result: AskResult) -> "AskResponse":
+        generation = result.generation
+        retrieval = result.retrieval
+        model_ids = []
+        if generation is not None and isinstance(generation.content, GroundedAnswer):
+            model_ids = list(generation.content.source_ids)
+        accepted = {hit.source_id for hit in result.sources}
+        rejected = max(0, len(model_ids) - len(accepted))
         return cls(
             answer=result.answer,
             has_sufficient_evidence=result.has_sufficient_evidence,
@@ -63,6 +89,21 @@ class AskResponse(BaseModel):
                 )
                 for hit in result.sources
             ],
+            decisions=AskDecisions(
+                retrieval_mode=None if retrieval is None else retrieval.mode,
+                chunks_considered=result.considered,
+                sources_accepted=len(result.sources),
+                sources_rejected=rejected,
+                prompt_name=None if generation is None else generation.prompt_name,
+                prompt_version=None if generation is None else generation.prompt_version,
+                provider=None if generation is None else generation.provider,
+                model=None if generation is None else generation.model,
+                latency_ms=None if generation is None else generation.latency_ms,
+                input_tokens=None if generation is None else generation.input_tokens,
+                output_tokens=None if generation is None else generation.output_tokens,
+                estimated_cost_usd=None if generation is None else generation.estimated_cost_usd,
+                finish_reason=None if generation is None else generation.finish_reason,
+            ),
         )
 
 

@@ -110,7 +110,10 @@ async def test_ask_answers_with_resolvable_sources(api):
         "conflicting",
         "sources",
         "considered",
+        "decisions",
     }
+    assert body["decisions"]["sources_accepted"] == 1
+    assert body["decisions"]["chunks_considered"] == body["considered"]
 
     # Every id in the answer resolves through the API, which is the point of it.
     resolved = await http.get(

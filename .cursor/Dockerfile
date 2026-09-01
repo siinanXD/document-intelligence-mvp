@@ -16,6 +16,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sudo \
     && rm -rf /var/lib/apt/lists/*
 
+# Node 22 for the web/ Next.js cockpit (SIN-77).
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
 ########################################################
 # Docker-in-Docker support for docker compose services.
 # Cursor documents fuse-overlayfs + iptables-legacy for

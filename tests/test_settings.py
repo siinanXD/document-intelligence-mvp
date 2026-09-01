@@ -56,6 +56,17 @@ def test_generation_controls_default_to_bounded_deterministic_values():
     assert settings.tracing_provider == "none"
 
 
+def test_settings_local_cors_defaults_and_explicit_override():
+    from app.core.settings import Settings
+
+    local = Settings(_env_file=None)
+    assert "http://127.0.0.1:3000" in local.cors_origin_list()
+    production = Settings(environment="production", _env_file=None)
+    assert production.cors_origin_list() == []
+    named = Settings(cors_origins="https://app.example", environment="production", _env_file=None)
+    assert named.cors_origin_list() == ["https://app.example"]
+
+
 def test_qdrant_timeout_is_whole_seconds_and_never_zero():
     """int(0.5) would be 0, which the Qdrant client reads as no timeout."""
     import pytest
