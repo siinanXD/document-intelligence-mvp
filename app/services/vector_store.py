@@ -31,6 +31,20 @@ class VectorStoreError(RuntimeError):
     """The vector store could not serve the request."""
 
 
+def bounded_similarity(score: float) -> float:
+    """Keep cosine scores inside the relation check constraint [0, 1].
+
+    Identical vectors can come back slightly above 1.0 from floating-point
+    cosine. Writing that into `document_relations.score` fails the schema
+    check and drops the relation entirely.
+    """
+    if score < 0.0:
+        return 0.0
+    if score > 1.0:
+        return 1.0
+    return score
+
+
 class VectorStoreService:
     def __init__(self, client: Any | None = None, collection: str | None = None) -> None:
         settings = get_settings()
@@ -232,7 +246,7 @@ class VectorStoreService:
         for point in response.points:
             payload = point.payload or {}
             chunk_id = payload.get("chunk_id") or point.id
-            results.append((UUID(str(chunk_id)), float(point.score)))
+            results.append((UUID(str(chunk_id)), bounded_similarity(float(point.score))))
         return results
 
     async def _collection_is_absent(self) -> bool:
@@ -348,5 +362,5 @@ class DocumentVectorStore:
             document_id = UUID(str(payload.get("document_id") or point.id))
             if exclude is not None and document_id == exclude:
                 continue
-            results.append((document_id, float(point.score)))
+            results.append((document_id, bounded_similarity(float(point.score))))
         return results[:limit]

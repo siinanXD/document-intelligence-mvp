@@ -15,7 +15,7 @@ from qdrant_client import AsyncQdrantClient
 from app.models import DocumentProfile, DocumentRelation, RelationType
 from app.services.document_vectors import NormalizedMeanStrategy
 from app.services.relations import detect_relations, list_relations
-from app.services.vector_store import DocumentVectorStore
+from app.services.vector_store import DocumentVectorStore, bounded_similarity
 
 DIMENSIONS = 4
 
@@ -85,6 +85,36 @@ async def test_identical_text_is_linked_as_a_content_duplicate(
     )
 
     assert [relation.relation_type for relation in found] == [RelationType.content_duplicate]
+
+
+async def test_identical_document_vectors_still_write_a_possible_version(
+    db_session, vectors, tenant, make_document, with_profile
+):
+    """Cosine of two copies can land slightly above 1.0; the row must still insert."""
+    original = await make_document(tenant, file_hash="v" * 64, content_hash="1" * 64)
+    revision = await make_document(tenant, file_hash="w" * 64, content_hash="2" * 64)
+    for document in (original, revision):
+        await with_profile(tenant, document, organizations=["Acme"], dates=["2024-01-01"])
+    await _place(vectors, tenant, original, [1.0, 0.0, 0.0, 0.0])
+    await _place(vectors, tenant, revision, [1.0, 0.0, 0.0, 0.0])
+
+    found = await detect_relations(
+        db_session,
+        vectors,
+        tenant_id=tenant.id,
+        document_id=revision.id,
+        vector=[1.0, 0.0, 0.0, 0.0],
+    )
+
+    assert [relation.relation_type for relation in found] == [RelationType.possible_version]
+    assert found[0].score is not None
+    assert 0.92 <= found[0].score <= 1.0
+
+
+def test_bounded_similarity_clips_floating_point_cosine():
+    assert bounded_similarity(1.000000067179426) == 1.0
+    assert bounded_similarity(-0.01) == 0.0
+    assert bounded_similarity(0.94) == 0.94
 
 
 async def test_a_near_identical_revision_is_a_possible_version(
