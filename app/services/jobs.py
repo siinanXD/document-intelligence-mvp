@@ -54,6 +54,17 @@ async def get_live_job(session: AsyncSession, *, tenant_id, document_id) -> Inge
     return result.scalars().first()
 
 
+async def get_latest_job(session: AsyncSession, *, tenant_id, document_id) -> IngestionJob | None:
+    """Return the most recently updated job for a document within one tenant."""
+    result = await session.execute(
+        select(IngestionJob)
+        .where(IngestionJob.tenant_id == tenant_id, IngestionJob.document_id == document_id)
+        .order_by(IngestionJob.updated_at.desc())
+        .limit(1)
+    )
+    return result.scalars().first()
+
+
 async def get_job(session: AsyncSession, *, tenant_id, job_id) -> IngestionJob | None:
     """Fetch one job. Scoped to a tenant: another tenant's job reads as absent."""
     result = await session.execute(

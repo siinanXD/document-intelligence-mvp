@@ -123,6 +123,19 @@ class Settings(BaseSettings):
     # --- Health ---
     health_check_timeout_seconds: float = Field(default=2.0, gt=0)
 
+    # --- Browser cockpit (SIN-77) ---
+    # Comma-separated origins allowed to call the API from a browser.
+    # Empty means local defaults when ENVIRONMENT=local, and no CORS otherwise.
+    cors_origins: str = ""
+
+    def cors_origin_list(self) -> list[str]:
+        explicit = [part.strip() for part in self.cors_origins.split(",") if part.strip()]
+        if explicit:
+            return explicit
+        if self.environment == "local":
+            return ["http://127.0.0.1:3000", "http://localhost:3000"]
+        return []
+
 
 @lru_cache
 def get_settings() -> Settings:

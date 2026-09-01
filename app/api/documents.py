@@ -17,10 +17,12 @@ from app.core.settings import get_settings
 from app.models import Document
 from app.providers.registry import ProviderConfigurationError, get_embedding_provider
 from app.services import documents as documents_service
+from app.services import jobs as jobs_service
 from app.services import lexical
 from app.services import relations as relations_service
 from app.services.deletion import delete_document
 from app.services.ingestion import ingest_upload
+from app.services.pipeline import build_pipeline
 from app.services.reindexing import (
     NoStoredChunks,
     ReindexError,
@@ -45,6 +47,10 @@ class DocumentResponse(BaseModel):
     status: str
     title: str | None
     document_type: str | None
+    parser_name: str | None = None
+    embedding_provider: str | None = None
+    embedding_model: str | None = None
+    embedding_version: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -58,6 +64,10 @@ class DocumentResponse(BaseModel):
             status=document.status.value,
             title=document.title,
             document_type=document.document_type,
+            parser_name=document.parser_name,
+            embedding_provider=document.embedding_provider,
+            embedding_model=document.embedding_model,
+            embedding_version=document.embedding_version,
             created_at=document.created_at,
             updated_at=document.updated_at,
         )
@@ -143,6 +153,26 @@ async def get_document(
         # confirm that the id exists.
         raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found")
     return DocumentResponse.of(document)
+
+
+@router.get(
+    "/{document_id}/pipeline",
+    responses={404: {"description": "No such document for this tenant"}},
+)
+async def get_document_pipeline(
+    session: SessionDep, tenant: TenantDep, document_id: uuid.UUID
+) -> dict:
+    """The uploaded → parsed → chunked → embedded → indexed → ready sequence."""
+    document = await documents_service.get_document(
+        session, tenant_id=tenant.id, document_id=document_id
+    )
+    if document is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found")
+    chunk_count = await documents_service.count_chunks(
+        session, tenant_id=tenant.id, document_id=document.id
+    )
+    job = await jobs_service.get_latest_job(session, tenant_id=tenant.id, document_id=document.id)
+    return build_pipeline(document=document, chunk_count=chunk_count, job=job).as_dict()
 
 
 class SourceResponse(BaseModel):

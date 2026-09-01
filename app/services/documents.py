@@ -6,7 +6,7 @@ variant: a caller that wants another tenant's row has to write a new query and
 justify it in review, rather than forgetting a filter.
 """
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Chunk, Document
@@ -76,3 +76,13 @@ async def list_chunks(session: AsyncSession, *, tenant_id, document_id) -> list[
         .order_by(Chunk.ordinal)
     )
     return list(result.scalars().all())
+
+
+async def count_chunks(session: AsyncSession, *, tenant_id, document_id) -> int:
+    """Count a document's chunks, scoped to one tenant."""
+    result = await session.execute(
+        select(func.count())
+        .select_from(Chunk)
+        .where(Chunk.tenant_id == tenant_id, Chunk.document_id == document_id)
+    )
+    return int(result.scalar_one())
