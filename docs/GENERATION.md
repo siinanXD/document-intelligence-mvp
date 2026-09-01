@@ -81,6 +81,16 @@ id if present, else the job id, else a fresh uuid.
 * Vendor imports stay in `app/providers/langfuse_adapter.py`
 * Install with `pip install -e ".[observability]"` when you want the SDK
 
+The adapter targets the Langfuse **v4** SDK (`langfuse>=4.7,<5`), which is
+observations-first: correlating attributes live on every observation rather
+than on a separate trace object. The adapter therefore uses `base_url` (the v4
+server-URL kwarg), stamps the deployment `environment` on the client, records
+each event with `start_as_current_observation`, and calls
+`propagate_attributes(session_id=..., user_id=...)` so the cost-bearing
+generation and its retrieval share a session (`session_id` is the request id,
+else the job id; `user_id` is the tenant id when known). No deprecated v3 call
+(`update_current_trace`, `start_generation`, `start_span`) is used.
+
 Langfuse is not a startup dependency and is not installed in ordinary CI.
 
 ## Privacy

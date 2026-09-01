@@ -17,9 +17,19 @@ logger = logging.getLogger(__name__)
 
 
 class LangfuseTracingAdapter(TracingAdapter):
-    def __init__(self, client: Any, *, capture_content: bool = False) -> None:
+    def __init__(
+        self,
+        client: Any,
+        *,
+        capture_content: bool = False,
+        propagate: Any | None = None,
+    ) -> None:
         self._client = client
         self._capture_content = capture_content
+        # `langfuse.propagate_attributes`, injected so unit tests can run
+        # without the SDK installed. When absent, correlating attributes are
+        # still recorded in observation metadata and the propagation is skipped.
+        self._propagate = propagate
 
     @classmethod
     def from_settings(cls, settings) -> LangfuseTracingAdapter | None:
@@ -30,7 +40,7 @@ class LangfuseTracingAdapter(TracingAdapter):
             )
             return None
         try:
-            from langfuse import Langfuse
+            from langfuse import Langfuse, propagate_attributes
         except ImportError:
             logger.warning(
                 "langfuse package is not installed",
@@ -38,21 +48,21 @@ class LangfuseTracingAdapter(TracingAdapter):
             )
             return None
 
+        # v4 renamed the server URL to `base_url`. `environment` replaces the
+        # trace-level `release`/`environment` fields removed from the SDK, so
+        # every observation is tagged with the deployment environment.
         host = settings.langfuse_host or settings.langfuse_base_url
-        try:
-            client = Langfuse(
-                public_key=settings.langfuse_public_key,
-                secret_key=settings.langfuse_secret_key,
-                base_url=host,
-            )
-        except TypeError:
-            # SDK v2/v3 used `host` rather than `base_url`.
-            client = Langfuse(
-                public_key=settings.langfuse_public_key,
-                secret_key=settings.langfuse_secret_key,
-                host=host,
-            )
-        return cls(client, capture_content=settings.tracing_capture_content)
+        client = Langfuse(
+            public_key=settings.langfuse_public_key,
+            secret_key=settings.langfuse_secret_key,
+            base_url=host,
+            environment=settings.environment,
+        )
+        return cls(
+            client,
+            capture_content=settings.tracing_capture_content,
+            propagate=propagate_attributes,
+        )
 
     @property
     def captures_content(self) -> bool:
@@ -96,7 +106,15 @@ class LangfuseTracingAdapter(TracingAdapter):
                 kwargs["input"] = input_payload
             if output_payload is not None:
                 kwargs["output"] = _jsonable(output_payload)
-        self._observe(**kwargs)
+        # v4: propagate correlating attributes onto the (cost-bearing) root
+        # observation. trace_id is the request id, else the job id, else a
+        # fresh uuid, so a request's generation and retrieval share a session.
+        extra_map = extra or {}
+        self._observe(
+            session_id=result.trace_id,
+            user_id=extra_map.get("tenant_id"),
+            **kwargs,
+        )
 
     async def record_retrieval(
         self,
@@ -105,11 +123,36 @@ class LangfuseTracingAdapter(TracingAdapter):
         extra: dict[str, object] | None = None,
     ) -> None:
         metadata = retrieval.safe_metadata()
-        if extra:
-            metadata.update(extra)
-        self._observe(as_type="span", name="retrieval", metadata=metadata)
+        extra_map = extra or {}
+        if extra_map:
+            metadata.update(extra_map)
+        self._observe(
+            as_type="span",
+            name="retrieval",
+            metadata=metadata,
+            session_id=extra_map.get("request_id") or extra_map.get("job_id"),
+            user_id=extra_map.get("tenant_id"),
+        )
 
-    def _observe(self, **kwargs: object) -> None:
+    def _observe(
+        self,
+        *,
+        session_id: str | None = None,
+        user_id: str | None = None,
+        **kwargs: object,
+    ) -> None:
+        attributes = {}
+        if session_id:
+            attributes["session_id"] = session_id
+        if user_id:
+            attributes["user_id"] = user_id
+        if self._propagate is not None and attributes:
+            with self._propagate(**attributes):
+                self._start_observation(**kwargs)
+        else:
+            self._start_observation(**kwargs)
+
+    def _start_observation(self, **kwargs: object) -> None:
         observation = self._client.start_as_current_observation(**kwargs)
         if hasattr(observation, "__enter__"):
             with observation:
