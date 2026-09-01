@@ -15,6 +15,17 @@ def test_async_database_url_rewrites_railway_postgres_urls():
     )
 
 
+def test_async_database_url_preserves_certificate_verification_modes():
+    assert (
+        async_database_url("postgresql://u:p@db:5432/railway?sslmode=verify-full")
+        == "postgresql+asyncpg://u:p@db:5432/railway?ssl=verify-full"
+    )
+    assert (
+        async_database_url("postgresql://u:p@db:5432/railway?sslmode=verify-ca")
+        == "postgresql+asyncpg://u:p@db:5432/railway?ssl=verify-ca"
+    )
+
+
 def test_async_database_url_leaves_asyncpg_and_other_schemes():
     already = "postgresql+asyncpg://u:p@localhost:5432/db"
     assert async_database_url(already) == already

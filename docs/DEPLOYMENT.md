@@ -20,8 +20,9 @@ action is reproducible and non-destructive.
 | storage | n/a | Railway S3-compatible bucket | bucket credentials |
 
 Private DNS is `<service>.railway.internal`. The browser talks only to **web**.
-Web proxies `/backend/*` to the private API via `API_UPSTREAM_URL`. That
-upstream host must never be assigned to `NEXT_PUBLIC_*`.
+Web serves `/backend/*` with a **runtime** route handler that reads
+`API_UPSTREAM_URL` and proxies to the private API. That upstream host must
+never be assigned to `NEXT_PUBLIC_*` (those values are inlined at build time).
 
 Qdrant must keep a volume at `/qdrant/storage` so a redeploy does not wipe
 vectors. Postgres persistence comes with the plugin.

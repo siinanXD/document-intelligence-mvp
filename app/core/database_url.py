@@ -1,8 +1,8 @@
 """Normalise DATABASE_URL values from hosted Postgres providers.
 
 Railway's plugin emits `postgres://` or `postgresql://` with `sslmode=require`.
-SQLAlchemy's async engine needs `postgresql+asyncpg://`, and asyncpg wants
-`ssl=require` rather than `sslmode`.
+SQLAlchemy's async engine needs `postgresql+asyncpg://`. The `sslmode` query
+parameter is renamed to `ssl` for asyncpg without changing the requested mode.
 """
 
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -25,5 +25,6 @@ def async_database_url(url: str) -> str:
     query = dict(parse_qsl(parts.query, keep_blank_values=True))
     sslmode = query.pop("sslmode", None)
     if sslmode and "ssl" not in query:
-        query["ssl"] = "require" if sslmode in {"require", "verify-ca", "verify-full"} else sslmode
+        # Rename only. Do not collapse verify-ca / verify-full to require.
+        query["ssl"] = sslmode
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
