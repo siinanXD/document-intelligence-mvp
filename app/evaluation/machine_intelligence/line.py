@@ -9,6 +9,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from app.evaluation.machine_intelligence.tables import (
+    alarm_rows,
+    bom_rows,
+    cable_rows,
+    cell_a,
+    fb_alarm_scl,
+    first_column_row,
+    line_containing,
+    motor_drive_rows,
+    ob1_scl,
+    row_containing,
+)
+
 GENERATOR_VERSION = "machine-intelligence-v1.0.0"
 DATASET_NAME = "machine-intelligence-v1"
 MACHINE_CODE = "CL-12"
@@ -489,6 +502,7 @@ def _blocks() -> list[dict]:
         },
     ]
     for number in range(1, 13):
+        instance_line = line_containing(ob1_scl(), f"CV{number:02d}Ctrl();")
         blocks.append(
             {
                 "name": f"CV{number:02d}Ctrl",
@@ -499,8 +513,8 @@ def _blocks() -> list[dict]:
                 "evidence": Evidence(
                     locator_kind="line_range",
                     artifact="plc/OB1.scl",
-                    line_start=3 + number,
-                    line_end=3 + number,
+                    line_start=instance_line,
+                    line_end=instance_line,
                 ).as_dict(),
             }
         )
@@ -614,7 +628,11 @@ def _components(line: Line) -> list[dict]:
                     locator_kind="sheet_cell",
                     artifact="bom.xlsx",
                     sheet_name="BOM",
-                    cell_range=f"A{conveyor.number + 1}",
+                    cell_range=cell_a(
+                        first_column_row(
+                            bom_rows(line, revision="A", quantity=1), conveyor.motor_tag
+                        )
+                    ),
                 ).as_dict(),
             }
         )
@@ -630,7 +648,7 @@ def _components(line: Line) -> list[dict]:
                         locator_kind="sheet_cell",
                         artifact="motor_drive.xlsx",
                         sheet_name="Drives",
-                        cell_range=f"A{conveyor.number + 1}",
+                        cell_range=cell_a(row_containing(motor_drive_rows(line), conveyor.vfd_tag)),
                     ).as_dict(),
                 }
             )
@@ -666,7 +684,7 @@ def _cables(line: Line) -> list[dict]:
                     locator_kind="sheet_cell",
                     artifact="cables.xlsx",
                     sheet_name="Cables",
-                    cell_range=f"A{conveyor.number + 1}",
+                    cell_range=cell_a(first_column_row(cable_rows(line), f"W-{conveyor.code}-RUN")),
                 ).as_dict(),
             }
         )
@@ -697,50 +715,35 @@ def _terminals(line: Line) -> list[dict]:
 
 
 def _alarms(line: Line) -> list[dict]:
-    alarms = [
-        {
-            "id": "ALM-ESTOP",
-            "code": "ALM-ESTOP",
-            "text": "Emergency stop not healthy",
-            "source": "Line.EStopOk",
-            "evidence": Evidence(
+    beacon = line_containing(fb_alarm_scl(), "Beacon :=")
+    alarms = []
+    for row_number, row in enumerate(alarm_rows(line), start=1):
+        if row_number == 1:
+            continue
+        alarm_id, text, source = row
+        if alarm_id.endswith("-VFD"):
+            evidence = Evidence(
+                locator_kind="line_range",
+                artifact="plc/FB_Alarm.scl",
+                line_start=beacon,
+                line_end=beacon,
+            )
+        else:
+            evidence = Evidence(
                 locator_kind="sheet_cell",
                 artifact="alarms.xlsx",
                 sheet_name="Alarms",
-                cell_range="A2",
-            ).as_dict(),
-        }
-    ]
-    for conveyor in line.conveyors:
+                cell_range=cell_a(row_number),
+            )
         alarms.append(
             {
-                "id": f"ALM-{conveyor.code}-JAM",
-                "code": f"ALM-{conveyor.code}-JAM",
-                "text": f"{conveyor.code} jam",
-                "source": f"{conveyor.code}.Jam",
-                "evidence": Evidence(
-                    locator_kind="sheet_cell",
-                    artifact="alarms.xlsx",
-                    sheet_name="Alarms",
-                    cell_range=f"A{conveyor.number + 2}",
-                ).as_dict(),
+                "id": alarm_id,
+                "code": alarm_id,
+                "text": text,
+                "source": source,
+                "evidence": evidence.as_dict(),
             }
         )
-        if conveyor.drive == "vfd":
-            alarms.append(
-                {
-                    "id": f"ALM-{conveyor.code}-VFD",
-                    "code": f"ALM-{conveyor.code}-VFD",
-                    "text": f"{conveyor.code} VFD fault",
-                    "source": f"{conveyor.code}.VfdFault",
-                    "evidence": Evidence(
-                        locator_kind="line_range",
-                        artifact="plc/FB_Alarm.scl",
-                        line_start=12,
-                        line_end=14,
-                    ).as_dict(),
-                }
-            )
     return alarms
 
 
@@ -782,7 +785,7 @@ def _connections(line: Line) -> list[dict]:
                     locator_kind="sheet_cell",
                     artifact="cables.xlsx",
                     sheet_name="Cables",
-                    cell_range=f"A{conveyor.number + 1}",
+                    cell_range=cell_a(first_column_row(cable_rows(line), f"W-{conveyor.code}-RUN")),
                 ).as_dict(),
             }
         )
@@ -795,8 +798,8 @@ def _connections(line: Line) -> list[dict]:
             "evidence": Evidence(
                 locator_kind="line_range",
                 artifact="plc/OB1.scl",
-                line_start=6,
-                line_end=6,
+                line_start=line_containing(ob1_scl(), "FC_Mode();"),
+                line_end=line_containing(ob1_scl(), "FC_Mode();"),
             ).as_dict(),
         }
     )

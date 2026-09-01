@@ -10,10 +10,12 @@ from pathlib import Path
 import pytest
 
 from app.evaluation.formats import build_file
+from app.evaluation.machine_intelligence.__main__ import _check
 from app.evaluation.machine_intelligence.artifacts import (
     DATASET_ROOT,
     binary_files,
     build_multipage_pdf,
+    generated_files,
     source_texts,
     write_dataset,
 )
@@ -27,7 +29,12 @@ from app.evaluation.machine_intelligence.line import (
     page_number,
 )
 from app.evaluation.machine_intelligence.mutations import apply_mutation
-from app.evaluation.machine_intelligence.oracle import build_oracle, facts_missing_evidence
+from app.evaluation.machine_intelligence.oracle import (
+    build_oracle,
+    evidence_resolution_errors,
+    facts_missing_evidence,
+)
+from app.evaluation.machine_intelligence.tables import first_column_row, line_containing
 
 SCENARIO_IDS = {
     "startup-auto",
@@ -83,9 +90,11 @@ def test_ci_subset_is_numeric_and_contained_in_full():
 
 
 def test_every_canonical_fact_has_complete_evidence():
-    oracle = build_oracle()
+    line = build_line()
+    oracle = build_oracle(line)
     missing = facts_missing_evidence(oracle)
     assert missing == []
+    assert evidence_resolution_errors(oracle, source_texts(line), extras=line.alarms) == []
     kinds: set[str] = set()
     collections = (
         oracle["entities"]
@@ -261,20 +270,78 @@ def test_compare_helpers_score_exact_sets():
 
 
 def test_committed_oracle_matches_generator():
-    oracle_path = DATASET_ROOT / "oracle.json"
-    assert oracle_path.is_file(), "run python -m app.evaluation.machine_intelligence"
-    committed = json.loads(oracle_path.read_text(encoding="utf-8"))
-    generated = build_oracle()
-    assert committed == generated
-    texts = source_texts()
-    for relative, body in texts.items():
-        path = DATASET_ROOT / relative
-        assert path.is_file(), relative
-        assert path.read_text(encoding="utf-8") == body
-    photo = DATASET_ROOT / "sources" / "cabinet_photo.png"
-    assert photo.read_bytes().startswith(b"\x89PNG")
+    expected = generated_files()
+    extras = []
+    for path in DATASET_ROOT.rglob("*"):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(DATASET_ROOT).as_posix()
+        assert relative in expected, relative
+        assert path.read_bytes() == expected[relative]
+        extras.append(relative)
+    assert set(extras) == set(expected)
     xml_in_conformance = list((DATASET_ROOT / "conformance").glob("*.xml"))
     assert xml_in_conformance == []
+
+
+def test_evidence_locators_resolve_in_generated_sources():
+    line = build_line()
+    texts = source_texts(line)
+    oracle = build_oracle(line)
+    errors = evidence_resolution_errors(oracle, texts, extras=line.alarms)
+    assert errors == []
+    bom_rows = [row.split("\t") for row in texts["sources/bom.tsv"].splitlines()]
+    motor = next(item for item in oracle["entities"] if item["id"] == "CV02-M1")
+    assert motor["evidence"][0]["cell_range"] == f"A{first_column_row(bom_rows, 'CV02-M1')}"
+    assert bom_rows[first_column_row(bom_rows, "CV02-M1") - 1][0] == "CV02-M1"
+    alarm_table = [row.split("\t") for row in texts["sources/alarms.tsv"].splitlines()]
+    jam = next(item for item in line.alarms if item["id"] == "ALM-CV02-JAM")
+    assert jam["evidence"]["cell_range"] == f"A{first_column_row(alarm_table, 'ALM-CV02-JAM')}"
+    ob1 = texts["sources/plc/OB1.scl"]
+    fc_ref = next(item for item in oracle["plc_references"] if item["id"] == "ref-ob1-fc-mode")
+    assert fc_ref["evidence"][0]["line_start"] == line_containing(ob1, "FC_Mode();")
+    ctrl = texts["sources/plc/FB_ConveyorCtrl.scl"]
+    start = next(item for item in oracle["plc_references"] if item["id"] == "ref-CV01-start")
+    assert start["evidence"][0]["line_start"] == line_containing(ctrl, "RunCmd :=")
+    assert start["evidence"][0]["line_end"] <= len(ctrl.splitlines())
+    alarm_scl = texts["sources/plc/FB_Alarm.scl"]
+    vfd = next(item for item in line.alarms if item["id"] == "ALM-CV01-VFD")
+    assert vfd["evidence"]["line_start"] == line_containing(alarm_scl, "Beacon :=")
+    assert vfd["evidence"]["line_end"] <= len(alarm_scl.splitlines())
+
+
+def test_evidence_resolution_errors_catch_wrong_and_oob_locators():
+    line = build_line()
+    texts = source_texts(line)
+    oracle = build_oracle(line)
+    motor = next(item for item in oracle["entities"] if item["id"] == "CV02-M1")
+    motor["evidence"][0]["cell_range"] = "A3"
+    cell_errors = evidence_resolution_errors(oracle, texts)
+    assert any("CV02-M1" in error and "holds" in error for error in cell_errors)
+    oracle = build_oracle(line)
+    start = next(item for item in oracle["plc_references"] if item["id"] == "ref-CV01-start")
+    start["evidence"][0]["line_start"] = 99
+    start["evidence"][0]["line_end"] = 99
+    span_errors = evidence_resolution_errors(oracle, texts)
+    assert any("ref-CV01-start" in error and "outside" in error for error in span_errors)
+
+
+def test_check_covers_metadata_and_missing_root(tmp_path: Path):
+    missing = tmp_path / "absent"
+    assert _check(missing) == 1
+    write_dataset(tmp_path)
+    assert _check(tmp_path) == 0
+    (tmp_path / "dialect.json").write_text("{}\n", encoding="utf-8")
+    assert _check(tmp_path) == 1
+    write_dataset(tmp_path)
+    (tmp_path / "sources" / "cabinet_photo.png").unlink()
+    assert _check(tmp_path) == 1
+    write_dataset(tmp_path)
+    (tmp_path / "LICENSE.md").write_text("tampered\n", encoding="utf-8")
+    assert _check(tmp_path) == 1
+    write_dataset(tmp_path)
+    (tmp_path / "stray.txt").write_text("nope\n", encoding="utf-8")
+    assert _check(tmp_path) == 1
 
 
 def test_multipage_pdf_keeps_page_objects():

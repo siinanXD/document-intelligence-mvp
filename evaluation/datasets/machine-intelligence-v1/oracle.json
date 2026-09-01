@@ -3838,7 +3838,7 @@
       "evidence": [
         {
           "artifact": "bom.xlsx",
-          "cell_range": "A3",
+          "cell_range": "A4",
           "locator_kind": "sheet_cell",
           "sheet_name": "BOM"
         }
@@ -3920,7 +3920,7 @@
       "evidence": [
         {
           "artifact": "bom.xlsx",
-          "cell_range": "A4",
+          "cell_range": "A5",
           "locator_kind": "sheet_cell",
           "sheet_name": "BOM"
         }
@@ -4003,7 +4003,7 @@
       "evidence": [
         {
           "artifact": "bom.xlsx",
-          "cell_range": "A5",
+          "cell_range": "A7",
           "locator_kind": "sheet_cell",
           "sheet_name": "BOM"
         }
@@ -4102,7 +4102,7 @@
       "evidence": [
         {
           "artifact": "bom.xlsx",
-          "cell_range": "A6",
+          "cell_range": "A9",
           "locator_kind": "sheet_cell",
           "sheet_name": "BOM"
         }
@@ -4168,7 +4168,7 @@
       "evidence": [
         {
           "artifact": "bom.xlsx",
-          "cell_range": "A7",
+          "cell_range": "A10",
           "locator_kind": "sheet_cell",
           "sheet_name": "BOM"
         }
@@ -4267,7 +4267,7 @@
       "evidence": [
         {
           "artifact": "bom.xlsx",
-          "cell_range": "A8",
+          "cell_range": "A12",
           "locator_kind": "sheet_cell",
           "sheet_name": "BOM"
         }
@@ -4350,7 +4350,7 @@
       "evidence": [
         {
           "artifact": "bom.xlsx",
-          "cell_range": "A9",
+          "cell_range": "A14",
           "locator_kind": "sheet_cell",
           "sheet_name": "BOM"
         }
@@ -4432,7 +4432,7 @@
       "evidence": [
         {
           "artifact": "bom.xlsx",
-          "cell_range": "A10",
+          "cell_range": "A15",
           "locator_kind": "sheet_cell",
           "sheet_name": "BOM"
         }
@@ -4515,7 +4515,7 @@
       "evidence": [
         {
           "artifact": "bom.xlsx",
-          "cell_range": "A11",
+          "cell_range": "A17",
           "locator_kind": "sheet_cell",
           "sheet_name": "BOM"
         }
@@ -4614,7 +4614,7 @@
       "evidence": [
         {
           "artifact": "bom.xlsx",
-          "cell_range": "A12",
+          "cell_range": "A19",
           "locator_kind": "sheet_cell",
           "sheet_name": "BOM"
         }
@@ -4680,7 +4680,7 @@
       "evidence": [
         {
           "artifact": "bom.xlsx",
-          "cell_range": "A13",
+          "cell_range": "A20",
           "locator_kind": "sheet_cell",
           "sheet_name": "BOM"
         }
@@ -5824,8 +5824,8 @@
       "evidence": [
         {
           "artifact": "plc/OB1.scl",
-          "line_end": 6,
-          "line_start": 6,
+          "line_end": 3,
+          "line_start": 3,
           "locator_kind": "line_range"
         }
       ],
@@ -5855,8 +5855,8 @@
       "evidence": [
         {
           "artifact": "plc/FB_ConveyorCtrl.scl",
-          "line_end": 24,
-          "line_start": 20,
+          "line_end": 15,
+          "line_start": 15,
           "locator_kind": "line_range"
         }
       ],
@@ -5886,8 +5886,8 @@
       "evidence": [
         {
           "artifact": "plc/FB_ConveyorCtrl.scl",
-          "line_end": 24,
-          "line_start": 20,
+          "line_end": 15,
+          "line_start": 15,
           "locator_kind": "line_range"
         }
       ],
@@ -5917,8 +5917,8 @@
       "evidence": [
         {
           "artifact": "plc/FB_ConveyorCtrl.scl",
-          "line_end": 24,
-          "line_start": 20,
+          "line_end": 15,
+          "line_start": 15,
           "locator_kind": "line_range"
         }
       ],
@@ -5948,8 +5948,8 @@
       "evidence": [
         {
           "artifact": "plc/FB_ConveyorCtrl.scl",
-          "line_end": 24,
-          "line_start": 20,
+          "line_end": 15,
+          "line_start": 15,
           "locator_kind": "line_range"
         }
       ],
@@ -5979,8 +5979,8 @@
       "evidence": [
         {
           "artifact": "plc/FB_ConveyorCtrl.scl",
-          "line_end": 24,
-          "line_start": 20,
+          "line_end": 15,
+          "line_start": 15,
           "locator_kind": "line_range"
         }
       ],
@@ -6010,8 +6010,8 @@
       "evidence": [
         {
           "artifact": "plc/FB_ConveyorCtrl.scl",
-          "line_end": 24,
-          "line_start": 20,
+          "line_end": 15,
+          "line_start": 15,
           "locator_kind": "line_range"
         }
       ],
@@ -6041,8 +6041,8 @@
       "evidence": [
         {
           "artifact": "plc/FB_ConveyorCtrl.scl",
-          "line_end": 24,
-          "line_start": 20,
+          "line_end": 15,
+          "line_start": 15,
           "locator_kind": "line_range"
         }
       ],
@@ -6072,8 +6072,8 @@
       "evidence": [
         {
           "artifact": "plc/FB_ConveyorCtrl.scl",
-          "line_end": 24,
-          "line_start": 20,
+          "line_end": 15,
+          "line_start": 15,
           "locator_kind": "line_range"
         }
       ],
@@ -6103,8 +6103,8 @@
       "evidence": [
         {
           "artifact": "plc/FB_ConveyorCtrl.scl",
-          "line_end": 24,
-          "line_start": 20,
+          "line_end": 15,
+          "line_start": 15,
           "locator_kind": "line_range"
         }
       ],
@@ -6134,8 +6134,8 @@
       "evidence": [
         {
           "artifact": "plc/FB_ConveyorCtrl.scl",
-          "line_end": 24,
-          "line_start": 20,
+          "line_end": 15,
+          "line_start": 15,
           "locator_kind": "line_range"
         }
       ],
@@ -6165,8 +6165,8 @@
       "evidence": [
         {
           "artifact": "plc/FB_ConveyorCtrl.scl",
-          "line_end": 24,
-          "line_start": 20,
+          "line_end": 15,
+          "line_start": 15,
           "locator_kind": "line_range"
         }
       ],
@@ -6196,8 +6196,8 @@
       "evidence": [
         {
           "artifact": "plc/FB_ConveyorCtrl.scl",
-          "line_end": 24,
-          "line_start": 20,
+          "line_end": 15,
+          "line_start": 15,
           "locator_kind": "line_range"
         }
       ],
@@ -9694,8 +9694,8 @@
       "evidence": [
         {
           "artifact": "plc/OB1.scl",
-          "line_end": 6,
-          "line_start": 6,
+          "line_end": 3,
+          "line_start": 3,
           "locator_kind": "line_range"
         }
       ],

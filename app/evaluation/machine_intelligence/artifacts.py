@@ -30,6 +30,16 @@ from app.evaluation.machine_intelligence.line import (
     schematic_page_text,
 )
 from app.evaluation.machine_intelligence.oracle import build_oracle
+from app.evaluation.machine_intelligence.tables import (
+    alarm_rows,
+    bom_rows,
+    cable_rows,
+    fb_alarm_scl,
+    fb_ctrl_scl,
+    motor_drive_rows,
+    ob1_scl,
+    tsv,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DATASET_ROOT = REPO_ROOT / "evaluation" / "datasets" / DATASET_NAME
@@ -45,10 +55,6 @@ BLOCK_ROOT_ELEMENT = {
 
 def dataset_root(root: Path | None = None) -> Path:
     return root or DATASET_ROOT
-
-
-def tsv(rows: list[list[str]]) -> str:
-    return "\n".join("\t".join(cell) for cell in rows) + "\n"
 
 
 def source_texts(line: Line | None = None) -> dict[str, str]:
@@ -119,42 +125,29 @@ def binary_files(line: Line | None = None) -> dict[str, bytes]:
 def write_dataset(root: Path | None = None) -> Path:
     dest = dataset_root(root)
     dest.mkdir(parents=True, exist_ok=True)
-    line = build_line()
-    oracle = build_oracle(line)
-    (dest / "oracle.json").write_text(
-        json.dumps(oracle, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
-    (dest / "dialect.json").write_text(
-        json.dumps(dialect_document(), indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
-    (dest / "manifest.json").write_text(
-        json.dumps(_manifest(oracle), indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
-    (dest / "LICENSE.md").write_text(_license(), encoding="utf-8")
-    _write_conformance(dest / "conformance")
-    for relative, body in source_texts(line).items():
+    for relative, body in generated_files().items():
         path = dest / relative
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(body, encoding="utf-8")
-    photo = dest / SOURCES / "cabinet_photo.png"
-    photo.write_bytes(minimal_png())
+        path.write_bytes(body)
     return dest
 
 
-def committed_paths(root: Path | None = None) -> dict[str, Path]:
-    dest = dataset_root(root)
-    mapping = {
-        "oracle.json": dest / "oracle.json",
-        "dialect.json": dest / "dialect.json",
-        "manifest.json": dest / "manifest.json",
-        "LICENSE.md": dest / "LICENSE.md",
-        "conformance/README.md": dest / "conformance" / "README.md",
-        "conformance/provenance.template.json": dest / "conformance" / "provenance.template.json",
-        "sources/cabinet_photo.png": dest / SOURCES / "cabinet_photo.png",
+def generated_files(line: Line | None = None) -> dict[str, bytes]:
+    """Every path write_dataset would create, including metadata and the PNG."""
+    line = line or build_line()
+    oracle = build_oracle(line)
+    files: dict[str, bytes] = {
+        "oracle.json": (json.dumps(oracle, indent=2, sort_keys=True) + "\n").encode(),
+        "dialect.json": (json.dumps(dialect_document(), indent=2, sort_keys=True) + "\n").encode(),
+        "manifest.json": (json.dumps(_manifest(oracle), indent=2, sort_keys=True) + "\n").encode(),
+        "LICENSE.md": _license().encode(),
+        "conformance/README.md": _conformance_readme().encode(),
+        "conformance/provenance.template.json": _conformance_provenance().encode(),
+        f"{SOURCES}/cabinet_photo.png": minimal_png(),
     }
-    for relative in source_texts():
-        mapping[relative] = dest / relative
-    return mapping
+    for relative, body in source_texts(line).items():
+        files[relative] = body.encode()
+    return files
 
 
 def _manifest(oracle: dict) -> dict:
@@ -187,9 +180,8 @@ def _license() -> str:
     )
 
 
-def _write_conformance(path: Path) -> None:
-    path.mkdir(parents=True, exist_ok=True)
-    (path / "README.md").write_text(
+def _conformance_readme() -> str:
+    return (
         "# SimaticML conformance sample (placeholder)\n\n"
         "SIN-99 requires a legally cleared, anonymized TIA Portal / Openness\n"
         "block export so SIN-93 does not co-evolve with the synthetic generator.\n\n"
@@ -200,10 +192,12 @@ def _write_conformance(path: Path) -> None:
         "2. Fill `provenance.template.json` and rename it to `provenance.json`.\n"
         "3. Keep Siemens namespaces and block/network structure; strip customer names.\n\n"
         "Until then, SIN-93 must not claim TIA-export compatibility.\n"
-        "CI does not install TIA Portal.\n",
-        encoding="utf-8",
+        "CI does not install TIA Portal.\n"
     )
-    (path / "provenance.template.json").write_text(
+
+
+def _conformance_provenance() -> str:
+    return (
         json.dumps(
             {
                 "status": "missing",
@@ -222,8 +216,7 @@ def _write_conformance(path: Path) -> None:
             indent=2,
             sort_keys=True,
         )
-        + "\n",
-        encoding="utf-8",
+        + "\n"
     )
 
 
@@ -278,10 +271,7 @@ def _hardware_list(line: Line) -> str:
 
 
 def _cable_list(line: Line) -> str:
-    rows = [["id", "from", "to"]]
-    for item in line.cables:
-        rows.append([item["id"], str(item["attributes"]["from"]), str(item["attributes"]["to"])])
-    return tsv(rows)
+    return tsv(cable_rows(line))
 
 
 def _terminal_list(line: Line) -> str:
@@ -292,34 +282,15 @@ def _terminal_list(line: Line) -> str:
 
 
 def _alarm_list(line: Line) -> str:
-    rows = [["id", "text", "source"]]
-    for item in line.alarms:
-        rows.append([item["id"], item["text"], item["source"]])
-    return tsv(rows)
+    return tsv(alarm_rows(line))
 
 
 def _bom(line: Line, *, revision: str, quantity: int) -> str:
-    rows = [["tag", "kind", "qty", "revision", "power_kw"]]
-    for conveyor in line.conveyors:
-        qty = str(quantity if conveyor.number == 1 else 1)
-        rows.append([conveyor.motor_tag, "motor", qty, revision, str(conveyor.power_kw)])
-        if conveyor.vfd_tag:
-            rows.append([conveyor.vfd_tag, "vfd", "1", revision, ""])
-    return tsv(rows)
+    return tsv(bom_rows(line, revision=revision, quantity=quantity))
 
 
 def _motor_drive(line: Line) -> str:
-    rows = [["motor", "drive", "kind", "power_kw"]]
-    for conveyor in line.conveyors:
-        rows.append(
-            [
-                conveyor.motor_tag,
-                conveyor.vfd_tag or "DOL",
-                conveyor.drive,
-                str(conveyor.power_kw),
-            ]
-        )
-    return tsv(rows)
+    return tsv(motor_drive_rows(line))
 
 
 def _commissioning(line: Line) -> str:
@@ -408,16 +379,16 @@ def _ob1_networks(_line: Line) -> list[str]:
     return calls
 
 
-def _ob1_scl(line: Line) -> str:
-    lines = [
-        "ORGANIZATION_BLOCK OB1",
-        "BEGIN",
-        "  FC_Mode();",
-    ]
-    for number in range(1, 13):
-        lines.append(f"  {conveyor_code(number)}Ctrl();")
-    lines.extend(["END_ORGANIZATION_BLOCK", ""])
-    return "\n".join(lines)
+def _ob1_scl(_line: Line) -> str:
+    return ob1_scl()
+
+
+def _fb_ctrl_scl() -> str:
+    return fb_ctrl_scl()
+
+
+def _fb_alarm_scl() -> str:
+    return fb_alarm_scl()
 
 
 def _fb_ctrl_networks() -> list[str]:
@@ -427,49 +398,10 @@ def _fb_ctrl_networks() -> list[str]:
     ]
 
 
-def _fb_ctrl_scl() -> str:
-    return (
-        "FUNCTION_BLOCK FB_ConveyorCtrl\n"
-        "VAR_INPUT\n"
-        "  Start : Bool;\n"
-        "  Stop : Bool;\n"
-        "  AutoMode : Bool;\n"
-        "  Ready : Bool;\n"
-        "  Jam : Bool;\n"
-        "  ProtectFb : Bool;\n"
-        "END_VAR\n"
-        "VAR_OUTPUT\n"
-        "  RunCmd : Bool;\n"
-        "  FaultLamp : Bool;\n"
-        "END_VAR\n"
-        "BEGIN\n"
-        "  RunCmd := Start AND NOT Stop AND AutoMode AND Ready AND NOT Jam;\n"
-        "  FaultLamp := Jam OR NOT ProtectFb;\n"
-        "END_FUNCTION_BLOCK\n"
-    )
-
-
 def _fb_alarm_networks() -> list[str]:
     networks = [f"// network {n}" for n in range(1, 9)]
     networks.append("UNKNOWN_INSTRUCTION();")
     return networks
-
-
-def _fb_alarm_scl() -> str:
-    return (
-        "FUNCTION_BLOCK FB_Alarm\n"
-        "VAR_INPUT\n"
-        "  Jam : Bool;\n"
-        "  VfdFault : Bool;\n"
-        "END_VAR\n"
-        "VAR_OUTPUT\n"
-        "  Beacon : Bool;\n"
-        "END_VAR\n"
-        "BEGIN\n"
-        "  Beacon := Jam OR VfdFault;\n"
-        "  // Network 9 is unsupported in the XML fixture.\n"
-        "END_FUNCTION_BLOCK\n"
-    )
 
 
 def _simaticml(block_type: str, name: str, networks: list[str]) -> str:

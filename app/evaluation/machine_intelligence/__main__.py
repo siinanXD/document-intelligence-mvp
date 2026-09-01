@@ -7,18 +7,15 @@ Regenerate the committed machine-intelligence-v1 dataset from the generator.
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 from app.evaluation.machine_intelligence.artifacts import (
     DATASET_ROOT,
-    committed_paths,
-    source_texts,
+    generated_files,
     write_dataset,
 )
 from app.evaluation.machine_intelligence.line import build_line
-from app.evaluation.machine_intelligence.oracle import build_oracle
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -33,16 +30,26 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _check(root: Path) -> int:
-    line = build_line()
-    expected_oracle = json.dumps(build_oracle(line), indent=2, sort_keys=True) + "\n"
-    actual_oracle = (root / "oracle.json").read_text(encoding="utf-8")
-    mismatches = []
-    if actual_oracle != expected_oracle:
-        mismatches.append("oracle.json")
-    for relative, body in source_texts(line).items():
+    if not root.is_dir():
+        print(f"fixture root missing: {root}", file=sys.stderr)
+        return 1
+    expected = generated_files(build_line())
+    mismatches: list[str] = []
+    for relative, body in expected.items():
         path = root / relative
-        if not path.is_file() or path.read_text(encoding="utf-8") != body:
-            mismatches.append(relative)
+        if not path.is_file():
+            mismatches.append(f"missing:{relative}")
+        elif path.read_bytes() != body:
+            mismatches.append(f"changed:{relative}")
+    extras = []
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(root).as_posix()
+        if relative not in expected:
+            extras.append(relative)
+    if extras:
+        mismatches.extend(f"extra:{name}" for name in sorted(extras))
     if mismatches:
         print("fixture drift:", ", ".join(mismatches[:20]), file=sys.stderr)
         return 1
@@ -53,8 +60,6 @@ def _check(root: Path) -> int:
 def main() -> None:
     args = build_parser().parse_args()
     if args.check:
-        if not committed_paths(args.root):
-            raise SystemExit(1)
         raise SystemExit(_check(args.root))
     dest = write_dataset(args.root)
     print(f"wrote {dest}")

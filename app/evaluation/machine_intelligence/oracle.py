@@ -20,6 +20,7 @@ from app.evaluation.machine_intelligence.line import (
     ci_subset,
     io_by_name,
 )
+from app.evaluation.machine_intelligence.tables import fb_ctrl_scl, line_containing, ob1_scl
 
 # Artifact path stands in for document_id. Field set matches SIN-89 locators.
 ORACLE_LOCATOR_REQUIREMENTS = {
@@ -260,6 +261,8 @@ def _plc_variables(line: Line) -> list[dict]:
 
 
 def _plc_references(line: Line) -> list[dict]:
+    fc_mode_line = line_containing(ob1_scl(), "FC_Mode();")
+    start_line = line_containing(fb_ctrl_scl(), "RunCmd :=")
     refs = [
         {
             "id": "ref-ob1-fc-mode",
@@ -272,8 +275,8 @@ def _plc_references(line: Line) -> list[dict]:
                 Evidence(
                     locator_kind="line_range",
                     artifact="plc/OB1.scl",
-                    line_start=6,
-                    line_end=6,
+                    line_start=fc_mode_line,
+                    line_end=fc_mode_line,
                 ).as_dict()
             ],
         }
@@ -310,8 +313,8 @@ def _plc_references(line: Line) -> list[dict]:
                     Evidence(
                         locator_kind="line_range",
                         artifact="plc/FB_ConveyorCtrl.scl",
-                        line_start=20,
-                        line_end=24,
+                        line_start=start_line,
+                        line_end=start_line,
                     ).as_dict()
                 ],
             }
@@ -351,3 +354,87 @@ def facts_missing_evidence(oracle: dict) -> list[str]:
                 missing.append(f"{fact['collection']}:{fact['id']}")
                 break
     return missing
+
+
+SHEET_SOURCES = {
+    "io_list.xlsx": "sources/io_list.tsv",
+    "bom.xlsx": "sources/bom.tsv",
+    "bom_rev_old.xlsx": "sources/bom_rev_old.tsv",
+    "hardware.xlsx": "sources/hardware.tsv",
+    "cables.xlsx": "sources/cables.tsv",
+    "terminals.xlsx": "sources/terminals.tsv",
+    "alarms.xlsx": "sources/alarms.tsv",
+    "motor_drive.xlsx": "sources/motor_drive.tsv",
+}
+
+LINE_SOURCES = {
+    "plc/OB1.scl": "sources/plc/OB1.scl",
+    "plc/FB_ConveyorCtrl.scl": "sources/plc/FB_ConveyorCtrl.scl",
+    "plc/FB_Alarm.scl": "sources/plc/FB_Alarm.scl",
+    "plc/FC_Mode.scl": "sources/plc/FC_Mode.scl",
+}
+
+
+def _cell_row(cell_range: str) -> int:
+    digits = "".join(ch for ch in cell_range if ch.isdigit())
+    if not digits:
+        raise ValueError(cell_range)
+    return int(digits)
+
+
+def evidence_resolution_errors(
+    oracle: dict,
+    sources: dict[str, str],
+    extras: list[dict] | None = None,
+) -> list[str]:
+    """Locators must resolve inside the generated sources, not merely exist."""
+    errors: list[str] = []
+    facts = canonical_facts(oracle)
+    for extra in extras or []:
+        facts.append({"collection": "extra", **extra})
+    for fact in facts:
+        locators = fact.get("evidence")
+        if not locators:
+            continue
+        if not isinstance(locators, list):
+            locators = [locators]
+        expected = str(fact["id"])
+        for locator in locators:
+            kind = locator.get("locator_kind")
+            artifact = locator.get("artifact")
+            if kind == "sheet_cell":
+                source_path = SHEET_SOURCES.get(artifact)
+                if source_path is None:
+                    errors.append(f"{fact['collection']}:{expected} unknown sheet {artifact}")
+                    continue
+                rows = sources[source_path].splitlines()
+                row_number = _cell_row(locator["cell_range"])
+                if row_number < 1 or row_number > len(rows):
+                    errors.append(
+                        f"{fact['collection']}:{expected} {artifact} {locator['cell_range']} "
+                        f"outside {len(rows)} rows"
+                    )
+                    continue
+                cells = rows[row_number - 1].split("\t")
+                if (
+                    fact["collection"] in {"entities", "plc_variables", "extra"}
+                    and expected not in cells
+                ):
+                    errors.append(
+                        f"{fact['collection']}:{expected} {artifact} "
+                        f"{locator['cell_range']} holds {cells[0]!r}"
+                    )
+            elif kind == "line_range":
+                source_path = LINE_SOURCES.get(artifact)
+                if source_path is None:
+                    errors.append(f"{fact['collection']}:{expected} unknown listing {artifact}")
+                    continue
+                lines = sources[source_path].splitlines()
+                start = int(locator["line_start"])
+                end = int(locator.get("line_end") or start)
+                if start < 1 or end > len(lines) or end < start:
+                    errors.append(
+                        f"{fact['collection']}:{expected} {artifact}:{start}-{end} "
+                        f"outside {len(lines)} lines"
+                    )
+    return errors
