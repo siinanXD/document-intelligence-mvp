@@ -1,0 +1,16 @@
+.git
+.github
+.cursor
+.venv
+web/node_modules
+web/.next
+storage
+**/__pycache__
+**/.env
+**/.env.local
+evaluation
+tests
+docs
+*.md
+!README.md
+!pyproject.toml

@@ -1,0 +1,4 @@
+# Pin must stay in step with docker-compose.yml and qdrant-client.
+# tests/test_dependency_consistency.py covers the compose tag; tests/test_deploy_config.py
+# covers this image tag.
+FROM qdrant/qdrant:v1.12.1

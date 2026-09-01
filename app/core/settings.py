@@ -7,8 +7,10 @@ committed; `.env.example` documents variable names only.
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.core.database_url import async_database_url
 
 
 class Settings(BaseSettings):
@@ -28,6 +30,13 @@ class Settings(BaseSettings):
     )
     database_pool_size: int = 5
     database_echo: bool = False
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _asyncpg_database_url(cls, value: object) -> object:
+        if isinstance(value, str):
+            return async_database_url(value)
+        return value
 
     # --- Qdrant ---
     qdrant_url: str = "http://localhost:6333"
