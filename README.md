@@ -294,6 +294,8 @@ Production (Railway EU West) is documented in
 config-as-code under `deploy/railway/`, and `scripts/production_smoke.sh`.
 Do not commit secret values. OpenAI remains an external processor even when
 our services run in the EU; see [`docs/PRIVACY.md`](docs/PRIVACY.md).
+Machine Intelligence extends this repository rather than a parallel stack;
+the audited plan is [`docs/MACHINE_INTELLIGENCE_ARCHITECTURE.md`](docs/MACHINE_INTELLIGENCE_ARCHITECTURE.md).
 
 ## Project layout
 
@@ -310,7 +312,7 @@ migrations/     Alembic environment and revisions
 tests/          pytest suite; every external call is mocked
 web/            Next.js cockpit (App Router)
 deploy/         Railway Dockerfiles and config-as-code
-docs/           workflow, privacy, evaluation, generation and deployment notes
+docs/           workflow, privacy, evaluation, generation, deployment and MI architecture notes
 ```
 
 Layering: `api -> services -> providers`. Routes never reach Qdrant, object
