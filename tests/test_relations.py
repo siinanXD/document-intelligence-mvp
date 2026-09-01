@@ -15,7 +15,11 @@ from qdrant_client import AsyncQdrantClient
 from app.models import DocumentProfile, DocumentRelation, RelationType
 from app.services.document_vectors import NormalizedMeanStrategy
 from app.services.relations import detect_relations, list_relations
-from app.services.vector_store import DocumentVectorStore, bounded_similarity
+from app.services.vector_store import (
+    DocumentVectorStore,
+    bounded_relation_score,
+    bounded_similarity,
+)
 
 DIMENSIONS = 4
 
@@ -111,10 +115,16 @@ async def test_identical_document_vectors_still_write_a_possible_version(
     assert 0.92 <= found[0].score <= 1.0
 
 
-def test_bounded_similarity_clips_floating_point_cosine():
+def test_bounded_similarity_clips_only_scores_above_one():
     assert bounded_similarity(1.000000067179426) == 1.0
-    assert bounded_similarity(-0.01) == 0.0
+    assert bounded_similarity(-0.01) == -0.01
     assert bounded_similarity(0.94) == 0.94
+
+
+def test_bounded_relation_score_fits_the_schema_check():
+    assert bounded_relation_score(1.000000067179426) == 1.0
+    assert bounded_relation_score(-0.01) == 0.0
+    assert bounded_relation_score(0.94) == 0.94
 
 
 async def test_a_near_identical_revision_is_a_possible_version(

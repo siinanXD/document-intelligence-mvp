@@ -13,7 +13,7 @@ import pytest
 import pytest_asyncio
 from qdrant_client import AsyncQdrantClient
 
-from app.services.vector_store import VectorStoreService
+from app.services.vector_store import VectorStoreService, bounded_similarity
 
 DIMENSIONS = 4
 
@@ -46,6 +46,21 @@ async def test_chunks_come_back_ranked_by_similarity(store):
 
     assert [chunk_id for chunk_id, _ in results][0] == near[0]
     assert results[0][1] > results[1][1]
+
+
+async def test_search_keeps_negative_cosine_order(store):
+    """Flooring negatives to 0.0 would make opposite and orthogonal chunks tie."""
+    tenant, document = uuid.uuid4(), uuid.uuid4()
+    opposite = _point([-1.0, 0.0, 0.0, 0.0], "opposite")
+    orthogonal = _point([0.0, 1.0, 0.0, 0.0], "orthogonal")
+    await store.upsert_chunks(tenant_id=tenant, document_id=document, points=[opposite, orthogonal])
+
+    results = await store.search(tenant_id=tenant, vector=[1.0, 0.0, 0.0, 0.0], limit=5)
+    scores = dict(results)
+
+    assert scores[orthogonal[0]] > scores[opposite[0]]
+    assert scores[opposite[0]] < 0.0
+    assert bounded_similarity(scores[opposite[0]]) == scores[opposite[0]]
 
 
 async def test_another_tenant_cannot_see_the_points(store):

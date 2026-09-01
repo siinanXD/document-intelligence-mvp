@@ -32,12 +32,19 @@ class VectorStoreError(RuntimeError):
 
 
 def bounded_similarity(score: float) -> float:
-    """Keep cosine scores inside the relation check constraint [0, 1].
+    """Clip floating-point cosine that slightly exceeds 1.0.
 
-    Identical vectors can come back slightly above 1.0 from floating-point
-    cosine. Writing that into `document_relations.score` fails the schema
-    check and drops the relation entirely.
+    Chunk search keeps negative scores so ranking still distinguishes a
+    weakly related passage from an anti-correlated one. Relation rows have a
+    separate helper because Postgres requires ``0 <= score <= 1``.
     """
+    if score > 1.0:
+        return 1.0
+    return score
+
+
+def bounded_relation_score(score: float) -> float:
+    """Keep a document-relation score inside the schema check [0, 1]."""
     if score < 0.0:
         return 0.0
     if score > 1.0:
@@ -362,5 +369,5 @@ class DocumentVectorStore:
             document_id = UUID(str(payload.get("document_id") or point.id))
             if exclude is not None and document_id == exclude:
                 continue
-            results.append((document_id, bounded_similarity(float(point.score))))
+            results.append((document_id, bounded_relation_score(float(point.score))))
         return results[:limit]
