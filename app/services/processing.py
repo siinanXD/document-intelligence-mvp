@@ -12,15 +12,17 @@ from dataclasses import dataclass
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.adapters.base import PackageRejected
 from app.core.correlation import bind_job_context, reset_job_context
 from app.models import Chunk, Document, DocumentStatus, IngestionJob
 from app.providers.base import EmbeddingProvider, LLMProvider
-from app.providers.parsing import DocumentParser, ParsingError
+from app.providers.parsing import DocumentParser, ParsedDocument, ParsingError
 from app.providers.storage import ObjectNotFoundError, StorageBackend
 from app.services import jobs as jobs_service
 from app.services.document_vectors import get_document_vector_strategy
 from app.services.indexing import IndexingError, index_document
 from app.services.normalization import content_hash, normalize_text, source_id_for
+from app.services.package_intake import ingest_artifact, is_search_skippable
 from app.services.profiling import ProfilingError, profile_document
 from app.services.relations import detect_relations
 from app.services.vector_store import (
@@ -117,9 +119,12 @@ async def _process_job(
     await session.flush()
 
     content = await storage.get(document.storage_key)
-    parsed = await parser.parse(
-        filename=document.filename, mime_type=document.mime_type, content=content
-    )
+    if is_search_skippable(document.mime_type):
+        parsed = ParsedDocument(text="", chunks=[], serialized=b"{}")
+    else:
+        parsed = await parser.parse(
+            filename=document.filename, mime_type=document.mime_type, content=content
+        )
 
     normalized = normalize_text(parsed.text)
     digest = content_hash(parsed.text)
@@ -166,8 +171,10 @@ async def _process_job(
 
     document.content_hash = digest
     document.normalized_key = normalized_key
-    document.parser_name = parser.name
+    document.parser_name = "adapter" if is_search_skippable(document.mime_type) else parser.name
     await session.flush()
+
+    await ingest_artifact(session, storage, document=document, content=content)
 
     # Indexing shares the job's transaction: a document reads `ready` only once
     # its chunks are searchable, so nothing can be listed as ready and then
@@ -291,6 +298,7 @@ async def mark_failed(
 
 RETRYABLE_ERRORS = (
     ParsingError,
+    PackageRejected,
     ObjectNotFoundError,
     IndexingError,
     ProfilingError,

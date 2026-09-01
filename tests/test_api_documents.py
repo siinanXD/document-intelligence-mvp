@@ -112,6 +112,32 @@ async def test_an_upload_creates_document_object_and_job(api, api_tenant, db_ses
     }
 
 
+async def test_a_zip_package_upload_is_accepted(api, api_tenant, db_session):
+    import io
+    import zipfile
+
+    client, storage = api
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("readme.md", "# line\n")
+    response = await _upload(
+        client,
+        api_tenant,
+        content=buffer.getvalue(),
+        filename="line.zip",
+        mime="application/zip",
+    )
+    assert response.status_code == 201
+    assert response.json()["document"]["mime_type"] == "application/zip"
+    document_id = uuid.UUID(response.json()["document"]["id"])
+    document = (
+        (await db_session.execute(select(Document).where(Document.id == document_id)))
+        .scalars()
+        .one()
+    )
+    assert await storage.exists(document.storage_key)
+
+
 async def test_the_storage_key_is_built_from_identifiers(api, api_tenant, db_session):
     client, _ = api
 
@@ -188,7 +214,7 @@ async def test_different_bytes_are_not_a_duplicate(api, api_tenant):
 @pytest.mark.parametrize(
     ("filename", "content", "mime", "expected_status"),
     [
-        ("archive.zip", b"PK\x03\x04", "application/zip", 415),
+        ("archive.zip", b"not-a-zip", "application/zip", 415),
         ("contract.pdf", b"<html>not a pdf</html>", "application/pdf", 415),
         ("contract.pdf", b"%PDF-1.7", "text/html", 415),
         ("empty.pdf", b"", "application/pdf", 400),
@@ -268,7 +294,7 @@ async def test_an_oversized_upload_leaves_no_row_or_object(
 async def test_a_refused_upload_stores_nothing(api, api_tenant, db_session):
     client, storage = api
 
-    await _upload(client, api_tenant, filename="archive.zip", mime="application/zip")
+    await _upload(client, api_tenant, filename="script.sh", mime="text/x-shellscript")
 
     documents = (
         (await db_session.execute(select(Document).where(Document.tenant_id == api_tenant.id)))
