@@ -53,6 +53,30 @@ class AssignmentState(enum.StrEnum):
     rejected = "rejected"
 
 
+class EngineeringDocumentClass(enum.StrEnum):
+    """First-slice engineering document classes (SIN-90)."""
+
+    schematic = "schematic"
+    manual = "manual"
+    bom = "bom"
+    io_list = "io_list"
+    hardware = "hardware"
+    cables = "cables"
+    terminals = "terminals"
+    alarms = "alarms"
+    motor_drive = "motor_drive"
+    plc_xml = "plc_xml"
+    plc_scl = "plc_scl"
+    s5_text = "s5_text"
+    cross_references = "cross_references"
+    photo = "photo"
+    revision = "revision"
+    manufacturer_facts = "manufacturer_facts"
+    package_container = "package_container"
+    unrelated = "unrelated"
+    unknown = "unknown"
+
+
 class EntityKind(enum.StrEnum):
     component = "component"
     signal = "signal"
@@ -336,6 +360,13 @@ class PackageAssignment(Base):
     document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     machine_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     assembly_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    relative_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    document_class: Mapped[EngineeringDocumentClass] = mapped_column(
+        Enum(EngineeringDocumentClass, name="engineering_document_class", native_enum=True),
+        nullable=False,
+        default=EngineeringDocumentClass.unknown,
+        server_default=EngineeringDocumentClass.unknown.value,
+    )
     state: Mapped[AssignmentState] = mapped_column(
         Enum(AssignmentState, name="assignment_state", native_enum=True),
         nullable=False,
@@ -379,6 +410,12 @@ class PackageAssignment(Base):
         ),
         CheckConstraint(_CONFIDENCE_CHECK, name="ck_package_assignments_confidence"),
         Index("ix_package_assignments_tenant_document", "tenant_id", "document_id"),
+        Index(
+            "ix_package_assignments_tenant_package_path",
+            "tenant_id",
+            "package_id",
+            "relative_path",
+        ),
     )
 
 
