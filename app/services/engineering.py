@@ -16,6 +16,7 @@ from app.engineering_models import (
     ConflictStatus,
     DerivedBehaviorClaim,
     EngineeringConflict,
+    EngineeringDocumentClass,
     EngineeringEntity,
     EngineeringEntityCandidate,
     EngineeringRelation,
@@ -325,6 +326,74 @@ async def record_evidence(
     return evidence
 
 
+async def list_machines(session: AsyncSession, *, tenant_id, package_id) -> list[Machine]:
+    result = await session.execute(
+        select(Machine)
+        .where(Machine.tenant_id == tenant_id, Machine.package_id == package_id)
+        .order_by(Machine.created_at)
+    )
+    return list(result.scalars().all())
+
+
+async def get_machine_by_code(
+    session: AsyncSession, *, tenant_id, package_id, code: str
+) -> Machine | None:
+    result = await session.execute(
+        select(Machine).where(
+            Machine.tenant_id == tenant_id,
+            Machine.package_id == package_id,
+            Machine.code == code,
+        )
+    )
+    return result.scalars().first()
+
+
+async def get_assembly(session: AsyncSession, *, tenant_id, assembly_id) -> Assembly | None:
+    result = await session.execute(
+        select(Assembly).where(Assembly.id == assembly_id, Assembly.tenant_id == tenant_id)
+    )
+    return result.scalars().first()
+
+
+async def get_assembly_by_code(
+    session: AsyncSession, *, tenant_id, package_id, code: str
+) -> Assembly | None:
+    result = await session.execute(
+        select(Assembly).where(
+            Assembly.tenant_id == tenant_id,
+            Assembly.package_id == package_id,
+            Assembly.code == code,
+        )
+    )
+    return result.scalars().first()
+
+
+async def list_assignments(
+    session: AsyncSession, *, tenant_id, package_id
+) -> list[PackageAssignment]:
+    result = await session.execute(
+        select(PackageAssignment)
+        .where(
+            PackageAssignment.tenant_id == tenant_id,
+            PackageAssignment.package_id == package_id,
+        )
+        .order_by(PackageAssignment.created_at)
+    )
+    return list(result.scalars().all())
+
+
+async def get_assignment(
+    session: AsyncSession, *, tenant_id, assignment_id
+) -> PackageAssignment | None:
+    result = await session.execute(
+        select(PackageAssignment).where(
+            PackageAssignment.id == assignment_id,
+            PackageAssignment.tenant_id == tenant_id,
+        )
+    )
+    return result.scalars().first()
+
+
 async def create_assignment(
     session: AsyncSession,
     *,
@@ -334,10 +403,13 @@ async def create_assignment(
     evidence_ids: list,
     machine_id=None,
     assembly_id=None,
+    relative_path: str | None = None,
+    document_class: EngineeringDocumentClass = EngineeringDocumentClass.unknown,
     state: AssignmentState = AssignmentState.proposed,
     confidence: float = 0.5,
     method: str = _METHOD,
     method_version: str = _METHOD_VERSION,
+    reason: dict | None = None,
 ) -> PackageAssignment:
     await _package_or_raise(session, tenant_id=tenant_id, package_id=package_id)
     assignment = PackageAssignment(
@@ -346,10 +418,13 @@ async def create_assignment(
         document_id=document_id,
         machine_id=machine_id,
         assembly_id=assembly_id,
+        relative_path=relative_path,
+        document_class=document_class,
         state=state,
         confidence=confidence,
         method=method,
         method_version=method_version,
+        reason=reason or {},
     )
     session.add(assignment)
     await session.flush()
