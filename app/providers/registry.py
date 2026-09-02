@@ -7,7 +7,12 @@ site names a vendor.
 from functools import lru_cache
 
 from app.core.settings import get_settings
-from app.providers.base import EmbeddingProvider, LLMProvider
+from app.providers.base import EmbeddingProvider, LLMProvider, RerankerProvider
+from app.providers.huggingface_provider import (
+    HuggingFaceEmbeddingProvider,
+    HuggingFaceReranker,
+    build_huggingface_client,
+)
 from app.providers.local_storage import LocalStorageBackend
 from app.providers.openai_provider import (
     OpenAIEmbeddingProvider,
@@ -35,9 +40,50 @@ def get_embedding_provider() -> EmbeddingProvider:
             version=settings.embedding_version,
             batch_size=settings.embedding_batch_size,
         )
+    if settings.embedding_provider == "huggingface":
+        if not settings.huggingface_embeddings_base_url:
+            raise ProviderConfigurationError("HUGGINGFACE_EMBEDDINGS_BASE_URL is not configured")
+        if settings.huggingface_embedding_dimensions is None:
+            raise ProviderConfigurationError("HUGGINGFACE_EMBEDDING_DIMENSIONS is not configured")
+        return HuggingFaceEmbeddingProvider(
+            client=build_huggingface_client(
+                settings.huggingface_embeddings_base_url,
+                api_key=settings.huggingface_api_key,
+                timeout_seconds=settings.huggingface_timeout_seconds,
+            ),
+            model=settings.embedding_model,
+            dimensions=settings.huggingface_embedding_dimensions,
+            version=settings.embedding_version,
+            batch_size=settings.huggingface_embedding_batch_size,
+        )
     raise ProviderConfigurationError(
         f"unsupported embedding provider: {settings.embedding_provider}"
     )
+
+
+@lru_cache
+def get_reranker() -> RerankerProvider | None:
+    """Return the configured reranker, or None when reranking is off.
+
+    None is the default and a fully supported state: retrieval works
+    identically without a reranker, so enabling one never changes an API
+    contract - only the ordering of results.
+    """
+    settings = get_settings()
+    if settings.reranker_provider == "none":
+        return None
+    if settings.reranker_provider == "huggingface":
+        if not settings.huggingface_rerank_base_url:
+            raise ProviderConfigurationError("HUGGINGFACE_RERANK_BASE_URL is not configured")
+        return HuggingFaceReranker(
+            client=build_huggingface_client(
+                settings.huggingface_rerank_base_url,
+                api_key=settings.huggingface_api_key,
+                timeout_seconds=settings.huggingface_timeout_seconds,
+            ),
+            model=settings.reranker_model,
+        )
+    raise ProviderConfigurationError(f"unsupported reranker provider: {settings.reranker_provider}")
 
 
 @lru_cache

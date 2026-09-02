@@ -20,7 +20,12 @@ from openai import (
 )
 
 from app.core.correlation import correlation_extra, current_request_id, current_trace_id
-from app.providers.base import EmbeddingProvider, LLMProvider, SchemaT
+from app.providers.base import (
+    EmbeddingProvider,
+    LLMProvider,
+    ProviderResponseError,
+    SchemaT,
+)
 from app.providers.generation import (
     GenerationResult,
     derive_total_tokens,
@@ -31,10 +36,13 @@ from app.providers.tracing import TracingAdapter, get_tracing_adapter
 
 logger = logging.getLogger(__name__)
 
-
-class ProviderResponseError(RuntimeError):
-    """Raised when a provider returns a response the caller cannot use."""
-
+# Re-exported for call sites that import it from here.
+__all__ = [
+    "OpenAIEmbeddingProvider",
+    "OpenAILLMProvider",
+    "ProviderResponseError",
+    "build_openai_client",
+]
 
 # Dimensionality of the models we support. Unknown models must be declared
 # explicitly rather than guessed, so an unsupported one fails loudly.

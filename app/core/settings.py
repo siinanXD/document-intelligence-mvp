@@ -48,13 +48,39 @@ class Settings(BaseSettings):
     qdrant_timeout_seconds: int = Field(default=5, ge=1)
 
     # --- AI providers ---
-    embedding_provider: Literal["openai"] = "openai"
+    # Switching the embedding provider or model is a configuration change plus
+    # a reindex: stored vectors keep their recorded identity, mismatch is
+    # detected, and docs/PROVIDERS.md describes the required rebuild.
+    embedding_provider: Literal["openai", "huggingface"] = "openai"
     embedding_model: str = "text-embedding-3-small"
     embedding_version: str = "v1"
     embedding_batch_size: int = Field(default=128, ge=1, le=2048)
     llm_provider: Literal["openai"] = "openai"
     llm_model: str = "gpt-4o-mini"
     openai_api_key: str | None = None
+    # --- Hugging Face / TEI-compatible endpoints ---
+    # Base URL of a Text Embeddings Inference-compatible server. Where it runs
+    # (local container, GPU host outside Railway, hosted inference) is a
+    # deployment concern; the application only ever sees this URL.
+    huggingface_embeddings_base_url: str | None = None
+    huggingface_api_key: str | None = None
+    # Required with the huggingface provider: the endpoint serves one model
+    # whose width the application must not guess. Verified against every
+    # response so a wrong value fails before any vector write.
+    huggingface_embedding_dimensions: int | None = Field(default=None, ge=1)
+    huggingface_timeout_seconds: float = Field(default=30.0, gt=0)
+    # TEI endpoints reject oversized batches; keep the default conservative.
+    huggingface_embedding_batch_size: int = Field(default=32, ge=1, le=2048)
+
+    # --- Reranker (optional second retrieval stage; off by default) ---
+    reranker_provider: Literal["none", "huggingface"] = "none"
+    # Identity marker only: a TEI rerank endpoint serves one fixed model.
+    reranker_model: str = ""
+    huggingface_rerank_base_url: str | None = None
+    # When reranking, first-stage retrieval fetches limit * multiplier
+    # candidates (capped) so the reranker has something to reorder.
+    reranker_candidate_multiplier: int = Field(default=4, ge=1, le=20)
+    reranker_max_candidates: int = Field(default=50, ge=1)
     # Generation controls. These are explicit so a vendor SDK default cannot
     # silently change timeout, retries or sampling under us.
     llm_timeout_seconds: float = Field(default=30.0, gt=0)
