@@ -353,39 +353,45 @@ async def _record_identity_conflicts(
         if isinstance(address, str) and address:
             address_groups[address].append(entity)
 
+    seen_pairs: set[tuple] = set()
     for group in (*comment_groups.values(), *address_groups.values()):
         if len(group) < 2:
             continue
         ordered = sorted(group, key=lambda row: row.canonical_name)
-        left, right = ordered[0], ordered[1]
-        evidence_rows = await engineering.list_evidence_for(
+        anchor = ordered[0]
+        anchor_evidence = await engineering.list_evidence_for(
             session,
             tenant_id=tenant_id,
             subject_kind=EvidenceSubjectKind.entity,
-            subject_id=left.id,
+            subject_id=anchor.id,
         )
-        extra = await engineering.list_evidence_for(
-            session,
-            tenant_id=tenant_id,
-            subject_kind=EvidenceSubjectKind.entity,
-            subject_id=right.id,
-        )
-        evidence_ids = [row.id for row in evidence_rows[:1] + extra[:1]]
-        if not evidence_ids:
-            continue
-        await engineering.record_conflict(
-            session,
-            tenant_id=tenant_id,
-            package_id=package_id,
-            conflict_kind=ConflictKind.identity,
-            left_subject_kind="entity",
-            left_subject_id=left.id,
-            right_subject_kind="entity",
-            right_subject_id=right.id,
-            evidence_ids=evidence_ids,
-            method=RESOLVER_METHOD,
-            method_version=RESOLVER_VERSION,
-        )
+        for other in ordered[1:]:
+            pair = (anchor.id, other.id)
+            if pair in seen_pairs:
+                continue
+            seen_pairs.add(pair)
+            extra = await engineering.list_evidence_for(
+                session,
+                tenant_id=tenant_id,
+                subject_kind=EvidenceSubjectKind.entity,
+                subject_id=other.id,
+            )
+            evidence_ids = [row.id for row in anchor_evidence[:1] + extra[:1]]
+            if not evidence_ids:
+                continue
+            await engineering.record_conflict(
+                session,
+                tenant_id=tenant_id,
+                package_id=package_id,
+                conflict_kind=ConflictKind.identity,
+                left_subject_kind="entity",
+                left_subject_id=anchor.id,
+                right_subject_kind="entity",
+                right_subject_id=other.id,
+                evidence_ids=evidence_ids,
+                method=RESOLVER_METHOD,
+                method_version=RESOLVER_VERSION,
+            )
 
     for stored in candidates_by_key.values():
         current = [item for item in stored if item[0].revision_role == "current"]
