@@ -115,6 +115,10 @@ async def ingest_artifact(
     await storage.put(adapter_key_for(document), encoded, content_type="application/json")
     if payload["validation_errors"]:
         raise PackageRejected(payload["validation_errors"][0])
+    if payload.get("package_id"):
+        from app.services.package_assignment import classify_and_assign_package
+
+        await classify_and_assign_package(session, storage, document=document)
     return payload
 
 

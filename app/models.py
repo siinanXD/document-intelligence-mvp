@@ -392,6 +392,7 @@ from app.engineering_models import (  # noqa: E402, F401
     ConflictStatus,
     DerivedBehaviorClaim,
     EngineeringConflict,
+    EngineeringDocumentClass,
     EngineeringEntity,
     EngineeringEntityCandidate,
     EngineeringRelation,
