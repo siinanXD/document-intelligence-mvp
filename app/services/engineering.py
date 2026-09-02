@@ -547,6 +547,77 @@ async def list_entities(session: AsyncSession, *, tenant_id, package_id) -> list
     return list(result.scalars().all())
 
 
+async def list_entity_candidates(
+    session: AsyncSession, *, tenant_id, package_id
+) -> list[EngineeringEntityCandidate]:
+    result = await session.execute(
+        select(EngineeringEntityCandidate).where(
+            EngineeringEntityCandidate.tenant_id == tenant_id,
+            EngineeringEntityCandidate.package_id == package_id,
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def list_conflicts(
+    session: AsyncSession, *, tenant_id, package_id
+) -> list[EngineeringConflict]:
+    result = await session.execute(
+        select(EngineeringConflict).where(
+            EngineeringConflict.tenant_id == tenant_id,
+            EngineeringConflict.package_id == package_id,
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def clear_package_identities(
+    session: AsyncSession, *, tenant_id, package_id, methods: tuple[str, ...]
+) -> None:
+    """Drop prior resolver output for this package. Manual rows are left intact."""
+    await _package_or_raise(session, tenant_id=tenant_id, package_id=package_id)
+    entities = [
+        row
+        for row in await list_entities(session, tenant_id=tenant_id, package_id=package_id)
+        if row.method in methods
+    ]
+    candidates = [
+        row
+        for row in await list_entity_candidates(session, tenant_id=tenant_id, package_id=package_id)
+        if row.method in methods
+    ]
+    conflicts = [
+        row
+        for row in await list_conflicts(session, tenant_id=tenant_id, package_id=package_id)
+        if row.method in methods
+    ]
+    for candidate in candidates:
+        candidate.canonical_entity_id = None
+    await session.flush()
+    for kind, rows in (
+        (EvidenceSubjectKind.conflict, conflicts),
+        (EvidenceSubjectKind.entity_candidate, candidates),
+        (EvidenceSubjectKind.entity, entities),
+    ):
+        ids = [row.id for row in rows]
+        if not ids:
+            continue
+        await session.execute(
+            delete(EvidenceBinding).where(
+                EvidenceBinding.tenant_id == tenant_id,
+                EvidenceBinding.subject_kind == kind,
+                EvidenceBinding.subject_id.in_(ids),
+            )
+        )
+        model = {
+            EvidenceSubjectKind.conflict: EngineeringConflict,
+            EvidenceSubjectKind.entity_candidate: EngineeringEntityCandidate,
+            EvidenceSubjectKind.entity: EngineeringEntity,
+        }[kind]
+        await session.execute(delete(model).where(model.tenant_id == tenant_id, model.id.in_(ids)))
+    await session.flush()
+
+
 async def create_canonical_relation(
     session: AsyncSession,
     *,

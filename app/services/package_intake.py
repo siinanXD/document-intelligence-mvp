@@ -116,9 +116,11 @@ async def ingest_artifact(
     if payload["validation_errors"]:
         raise PackageRejected(payload["validation_errors"][0])
     if payload.get("package_id"):
+        from app.services.identity_resolution import resolve_package_identities
         from app.services.package_assignment import classify_and_assign_package
 
         await classify_and_assign_package(session, storage, document=document)
+        await resolve_package_identities(session, storage, document=document)
     return payload
 
 
