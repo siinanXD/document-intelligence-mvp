@@ -30,6 +30,33 @@ def member_storage_key(*, tenant_id, document_id, path_hint: str) -> str:
     return f"{tenant_id}/{document_id}/members/{path_hint}"
 
 
+def assert_zip_directory_within_limits(archive: zipfile.ZipFile) -> None:
+    """Raise ValueError if the zip directory describes a bomb.
+
+    Inspects declared sizes only; members are not decompressed.
+    """
+    try:
+        infos = [info for info in archive.infolist() if not _is_directory(info)]
+    except zipfile.BadZipFile as exc:
+        raise ValueError("zip archive is malformed") from exc
+    if len(infos) > MAX_MEMBERS:
+        raise ValueError("zip archive has too many members")
+    total = 0
+    for info in infos:
+        if info.file_size > MAX_UNCOMPRESSED_MEMBER:
+            raise ValueError("zip member exceeds size limit")
+        compressed = info.compress_size or 1
+        if (
+            info.file_size >= _RATIO_FLOOR
+            and compressed >= 1
+            and info.file_size / compressed > MAX_COMPRESSION_RATIO
+        ):
+            raise ValueError("zip compression ratio exceeds limit")
+        total += info.file_size
+        if total > MAX_UNCOMPRESSED_TOTAL:
+            raise ValueError("zip expanded size exceeds limit")
+
+
 def safe_unpack(content: bytes) -> tuple[ArchiveMember, ...]:
     """Return archive members after rejecting traversal, bombs and empties."""
     if not content.startswith(b"PK"):

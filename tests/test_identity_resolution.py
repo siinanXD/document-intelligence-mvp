@@ -17,8 +17,12 @@ from app.evaluation.machine_intelligence.oracle import build_oracle
 from app.models import IngestionJob
 from app.providers.local_storage import LocalStorageBackend
 from app.services import engineering
-from app.services.identity_resolution import RESOLVER_METHOD, assembly_code_for
-from app.services.package_assignment import current_assignments
+from app.services.identity_resolution import (
+    RESOLVER_METHOD,
+    assembly_code_for,
+    resolve_package_identities,
+)
+from app.services.package_assignment import _load_payload, current_assignments
 from app.services.processing import process_job
 from tests.test_package_intake import _queued_zip
 from tests.test_processing import _FakeParser
@@ -157,6 +161,23 @@ async def test_resolution_is_reproducible_and_idempotent(
     second = await engineering.list_entities(db_session, tenant_id=tenant.id, package_id=package.id)
     assert sorted(row.canonical_name for row in second) == first_names
     assert {row.method for row in second} == {RESOLVER_METHOD}
+
+
+async def test_missing_member_blobs_do_not_erase_identities(
+    db_session, storage, tenant, make_document
+):
+    document, package = await _ingest_package(
+        db_session, storage, tenant, make_document, binary_files()
+    )
+    first = await engineering.list_entities(db_session, tenant_id=tenant.id, package_id=package.id)
+    assert first
+    payload = await _load_payload(storage, document)
+    for key in payload.get("member_storage_keys") or []:
+        await storage.delete(key)
+    await resolve_package_identities(db_session, storage, document=document)
+    second = await engineering.list_entities(db_session, tenant_id=tenant.id, package_id=package.id)
+    assert {row.id for row in second} == {row.id for row in first}
+    assert {row.canonical_name for row in second} == {row.canonical_name for row in first}
 
 
 async def test_entities_are_invisible_to_another_tenant(

@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from typing import Any
 from xml.etree import ElementTree
 
+from app.adapters.zip_unpack import assert_zip_directory_within_limits
+
 _S_NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 _REL_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"
 _DOC_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -105,6 +107,7 @@ def _parse_delimited(
 def _parse_xlsx(content: bytes) -> tuple[str, tuple[TableRow, ...]]:
     try:
         with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            assert_zip_directory_within_limits(archive)
             workbook = archive.read("xl/workbook.xml")
             sheet_name, sheet_path = _workbook_sheet(archive, workbook)
             strings = (

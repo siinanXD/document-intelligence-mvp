@@ -594,25 +594,28 @@ async def clear_package_identities(
     for candidate in candidates:
         candidate.canonical_entity_id = None
     await session.flush()
-    subject_ids = {
-        kind: [row.id for row in rows]
-        for kind, rows in (
-            (EvidenceSubjectKind.conflict, conflicts),
-            (EvidenceSubjectKind.entity_candidate, candidates),
-            (EvidenceSubjectKind.entity, entities),
-        )
-    }
-    evidence_ids = (
-        await session.execute(
-            select(EvidenceBinding.evidence_id).where(
-                EvidenceBinding.tenant_id == tenant_id,
-                EvidenceBinding.subject_kind.in_(subject_ids),
-                EvidenceBinding.subject_id.in_(
-                    [item for ids in subject_ids.values() for item in ids]
-                ),
+    kinds = (
+        EvidenceSubjectKind.conflict,
+        EvidenceSubjectKind.entity_candidate,
+        EvidenceSubjectKind.entity,
+    )
+    all_subject_ids = [row.id for row in (*conflicts, *candidates, *entities)]
+    if all_subject_ids:
+        evidence_ids = (
+            (
+                await session.execute(
+                    select(EvidenceBinding.evidence_id).where(
+                        EvidenceBinding.tenant_id == tenant_id,
+                        EvidenceBinding.subject_kind.in_(kinds),
+                        EvidenceBinding.subject_id.in_(all_subject_ids),
+                    )
+                )
             )
+            .scalars()
+            .all()
         )
-    ).scalars().all()
+    else:
+        evidence_ids = []
     for kind, rows in (
         (EvidenceSubjectKind.conflict, conflicts),
         (EvidenceSubjectKind.entity_candidate, candidates),
