@@ -16,6 +16,10 @@ from app.providers.prompts import Prompt
 SchemaT = TypeVar("SchemaT", bound=BaseModel)
 
 
+class ProviderResponseError(RuntimeError):
+    """Raised when a provider returns a response the caller cannot use."""
+
+
 class EmbeddingProvider(ABC):
     """Turns text into vectors.
 
@@ -47,6 +51,29 @@ class EmbeddingProvider(ABC):
     @abstractmethod
     async def embed(self, texts: list[str]) -> list[list[float]]:
         """Embed texts, returning one vector per input in the same order."""
+
+
+class RerankerProvider(ABC):
+    """Scores query-passage relevance for a second retrieval stage.
+
+    Reranking is optional: retrieval must work identically without one, and a
+    reranker can only reorder passages the first stage already surfaced - it
+    never adds passages of its own.
+    """
+
+    @property
+    @abstractmethod
+    def provider(self) -> str:
+        """Stable provider identifier, e.g. `huggingface`."""
+
+    @property
+    @abstractmethod
+    def model(self) -> str:
+        """Model identifier used for reranking, if the endpoint names one."""
+
+    @abstractmethod
+    async def rerank(self, query: str, texts: list[str]) -> list[float]:
+        """Return one relevance score per text, in the same order as `texts`."""
 
 
 class LLMProvider(ABC):

@@ -102,6 +102,45 @@ async def test_search_returns_the_matching_chunk_with_its_provenance(indexed):
     assert 0.0 <= top["score"] <= 1.0
 
 
+async def test_enabling_the_reranker_keeps_the_response_contract(indexed, monkeypatch):
+    """Reranking reorders results; the request and response shapes never change."""
+    http, tenant, documents, _ = indexed
+
+    class _PreferNotice:
+        provider = "fake"
+        model = "fake-rerank"
+
+        async def rerank(self, query: str, texts: list[str]) -> list[float]:
+            return [1.0 if "notice" in text.lower() else 0.1 for text in texts]
+
+    monkeypatch.setattr("app.api.search.get_reranker", lambda: _PreferNotice())
+
+    response = await http.post(
+        "/search",
+        headers={"X-Tenant-Id": str(tenant.id)},
+        json={"query": "payment", "limit": 1},
+    )
+
+    assert response.status_code == 200
+    results = response.json()["results"]
+    assert len(results) == 1
+    # The reranker promoted the notice passage over the closest vector.
+    assert "notice" in results[0]["text"].lower()
+    # Same fields as an unreranked response.
+    assert {
+        "chunk_id",
+        "document_id",
+        "filename",
+        "source_id",
+        "text",
+        "score",
+        "ordinal",
+        "page_number",
+        "section_title",
+        "source_metadata",
+    } <= set(results[0])
+
+
 async def test_search_can_be_narrowed_to_one_document(indexed):
     http, tenant, documents, _ = indexed
 

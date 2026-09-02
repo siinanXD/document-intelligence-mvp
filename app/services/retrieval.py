@@ -10,13 +10,14 @@ providers is a settings change and not a rewrite.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.settings import get_settings
 from app.models import Chunk, Document
-from app.providers.base import EmbeddingProvider
+from app.providers.base import EmbeddingProvider, RerankerProvider
 from app.services.indexing import is_current_embedding
 from app.services.vector_store import VectorStoreService
 
@@ -46,12 +47,18 @@ async def search(
     query: str,
     limit: int,
     document_ids: list | None = None,
+    reranker: RerankerProvider | None = None,
 ) -> list[SearchHit]:
     """Return the closest chunks to `query` within one tenant.
 
     `document_ids` narrows the search further; it can never widen it. Ids
     belonging to another tenant simply match nothing, because the tenant
     filter is applied regardless.
+
+    With a `reranker`, the first stage fetches a wider candidate set and the
+    reranker reorders it before the same `limit` is applied. The response
+    shape does not change, and a reranker failure degrades to the
+    vector-ranked results rather than failing the search.
     """
     query = query.strip()
     if not query:
@@ -61,10 +68,18 @@ async def search(
     if not vectors:
         return []
 
+    fetch_limit = limit
+    if reranker is not None:
+        settings = get_settings()
+        fetch_limit = max(
+            limit,
+            min(limit * settings.reranker_candidate_multiplier, settings.reranker_max_candidates),
+        )
+
     scored = await vector_store.search(
         tenant_id=tenant_id,
         vector=vectors[0],
-        limit=limit,
+        limit=fetch_limit,
         document_ids=document_ids,
     )
     if not scored:
@@ -117,4 +132,39 @@ async def search(
         )
 
     hits.sort(key=lambda hit: hit.score, reverse=True)
-    return hits
+
+    if reranker is not None and hits:
+        hits = await _rerank(reranker, query=query, hits=hits, tenant_id=tenant_id)
+
+    return hits[:limit]
+
+
+async def _rerank(
+    reranker: RerankerProvider, *, query: str, hits: list[SearchHit], tenant_id
+) -> list[SearchHit]:
+    """Reorder hits by reranker relevance, falling back to the vector order.
+
+    Reranking is an optional refinement: an unreachable or misbehaving
+    endpoint must not turn a working search into an outage, so any failure is
+    logged (type only, never the query or the passages) and the first-stage
+    ranking is returned unchanged.
+    """
+    try:
+        scores = await reranker.rerank(query, [hit.text for hit in hits])
+    except Exception as exc:
+        logger.warning(
+            "reranking failed; returning vector-ranked results",
+            extra={"tenant_id": str(tenant_id), "error_type": type(exc).__name__},
+        )
+        return hits
+
+    if len(scores) != len(hits):
+        logger.warning(
+            "reranker returned a mismatched score count; returning vector-ranked results",
+            extra={"tenant_id": str(tenant_id), "scored": len(scores), "hits": len(hits)},
+        )
+        return hits
+
+    reranked = [replace(hit, score=score) for hit, score in zip(hits, scores, strict=True)]
+    reranked.sort(key=lambda hit: hit.score, reverse=True)
+    return reranked

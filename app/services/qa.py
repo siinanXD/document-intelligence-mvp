@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.correlation import correlation_extra
-from app.providers.base import EmbeddingProvider, LLMProvider
+from app.providers.base import EmbeddingProvider, LLMProvider, RerankerProvider
 from app.providers.generation import GenerationResult, RetrievalSourceTrace, RetrievalTrace
 from app.providers.prompts import ASK_GROUNDED
 from app.providers.tracing import get_tracing_adapter
@@ -88,6 +88,7 @@ async def ask(
     question: str,
     limit: int,
     document_ids: list | None = None,
+    reranker: RerankerProvider | None = None,
 ) -> AskResult:
     """Answer a question from the tenant's own documents, with citations."""
     question = question.strip()
@@ -102,6 +103,7 @@ async def ask(
         query=question,
         limit=limit,
         document_ids=document_ids,
+        reranker=reranker,
     )
 
     if not hits:
