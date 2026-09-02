@@ -22,6 +22,19 @@ Review pull requests for concrete correctness, security, privacy, tenant-isolati
 - Migrations, downgrade/upgrade behavior and model/schema drift.
 - Tests that only prove mocks agree with the implementation instead of exercising production wiring.
 
+## Test integrity
+
+- Flag any test that is skipped, marked xfail, deleted, or whose assertions were loosened so a previously failing behavior now passes. This is a hard rule in `docs/AUTOMATIONS.md`. Removing a test is only legitimate when the behavior it covered was itself removed, and the pull request must say so.
+
+## Secrets in the diff
+
+- Flag any credential, API key, token, private key or filled `.env` file appearing in the diff, including in fixtures, test data and example files (`docs/AUTOMATIONS.md`).
+
+## Mandatory human-gate categories
+
+- Flag it when a pull request touches a category that `docs/AUTOMATIONS.md` lists as requiring owner approval: authentication/authorization, tenant isolation, secrets, deployment/infrastructure, destructive migrations, deletion/retention semantics, GitHub Actions or permissions, major dependency upgrades, paid live-provider execution, Safety PLC behavior, machine control, protected PLC blocks.
+- State which category applies and that the `owner-approval-required` label belongs on the pull request. Do not apply the label.
+
 ## Review style
 
 - Flag a finding only when it can cause incorrect behavior, security/privacy exposure, data inconsistency, broken compatibility or a meaningful untested regression.
