@@ -14,6 +14,7 @@ from app.adapters.base import (
     Observation,
     ValidationReport,
 )
+from app.adapters.extract import extract_pdf_pages, extract_text_pages, parse_table
 
 _STUB_LIMIT = "full domain parser is not in SIN-100"
 
@@ -218,7 +219,46 @@ class TabularAdapter(EngineeringAdapter):
         return _detection(self.name, "F", 0.0, "not-tabular")
 
     def extract(self, artifact: Artifact) -> ExtractResult:
-        return _stub_extract(self.name, "tabular", artifact)
+        sheet_name, rows = parse_table(artifact.content, artifact.filename)
+        observations = [
+            Observation(
+                kind="document_class",
+                payload={"document_class": "tabular", "adapter": self.name},
+                evidence=_evidence(artifact),
+                confidence=0.9,
+            )
+        ]
+        for row in rows:
+            observations.append(
+                Observation(
+                    kind="tabular_row",
+                    payload={
+                        "sheet_name": sheet_name,
+                        "row_number": row.row_number,
+                        "cells": row.cells,
+                    },
+                    evidence={
+                        "locator_kind": "sheet_cell",
+                        "sheet_name": sheet_name,
+                        "cell_range": row.cell_range,
+                        "artifact": artifact.filename,
+                        **({"path_hint": artifact.path_hint} if artifact.path_hint else {}),
+                    },
+                    confidence=1.0,
+                )
+            )
+        warnings: tuple[str, ...] = ()
+        if not rows:
+            observations.append(
+                Observation(
+                    kind="unsupported",
+                    payload={"construct": _STUB_LIMIT, "adapter": self.name},
+                    evidence=_evidence(artifact),
+                    confidence=1.0,
+                )
+            )
+            warnings = (_STUB_LIMIT,)
+        return ExtractResult(observations=tuple(observations), warnings=warnings)
 
     def validate(self, artifact: Artifact, result: ExtractResult) -> ValidationReport:
         return ValidationReport(ok=True)
@@ -275,16 +315,37 @@ class DoclingDocumentAdapter(EngineeringAdapter):
         return _detection(self.name, "E", 0.0, "not-document")
 
     def extract(self, artifact: Artifact) -> ExtractResult:
-        return ExtractResult(
-            observations=(
-                Observation(
-                    kind="document_class",
-                    payload={"document_class": "prose_document", "adapter": self.name},
-                    evidence=_evidence(artifact),
-                    confidence=0.8,
-                ),
+        observations = [
+            Observation(
+                kind="document_class",
+                payload={"document_class": "prose_document", "adapter": self.name},
+                evidence=_evidence(artifact),
+                confidence=0.8,
             )
-        )
+        ]
+        pages = ()
+        lowered = artifact.filename.lower()
+        if lowered.endswith(".pdf"):
+            pages = extract_pdf_pages(artifact.content)
+        elif lowered.endswith((".md", ".txt")):
+            pages = extract_text_pages(artifact.content)
+        for page_number, text in pages:
+            observations.append(
+                Observation(
+                    kind="text_page",
+                    payload={"page_number": page_number, "char_count": len(text)},
+                    evidence=_evidence(artifact)
+                    if not lowered.endswith(".pdf")
+                    else {
+                        "locator_kind": "page",
+                        "page_number": page_number,
+                        "artifact": artifact.filename,
+                        **({"path_hint": artifact.path_hint} if artifact.path_hint else {}),
+                    },
+                    confidence=0.8,
+                )
+            )
+        return ExtractResult(observations=tuple(observations))
 
     def validate(self, artifact: Artifact, result: ExtractResult) -> ValidationReport:
         return ValidationReport(ok=True)
