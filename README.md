@@ -262,6 +262,15 @@ when priced, prompt name/version, latency, trace/request id). Tracing is
 optional and fail-open; Langfuse is `pip install -e ".[observability]"` and is
 not required for requests to work. See [`docs/GENERATION.md`](docs/GENERATION.md).
 
+### Embedding providers and optional reranking
+
+Embeddings come from OpenAI (default) or any Hugging Face / Text Embeddings
+Inference-compatible endpoint - a configuration switch plus a reindex, never a
+code change. An optional TEI-compatible reranker can reorder search candidates
+behind the same API contracts; it is off by default. Candidate multilingual
+models, the reindex procedure and hosting GPU-backed endpoints outside Railway
+are documented in [`docs/PROVIDERS.md`](docs/PROVIDERS.md).
+
 ### Migrations
 
 ```bash
