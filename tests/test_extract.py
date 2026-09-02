@@ -6,7 +6,7 @@ import io
 import zipfile
 
 from app.adapters.base import Artifact
-from app.adapters.extract import parse_table
+from app.adapters.extract import MAX_SHEET_COLUMNS, MAX_SHEET_ROWS, parse_table
 from app.adapters.stubs import TabularAdapter
 from app.adapters.zip_unpack import MAX_COMPRESSION_RATIO
 from app.evaluation.machine_intelligence.artifacts import binary_files
@@ -41,6 +41,14 @@ def _workbook_rels(target: str, relationship_id: str = "rId1") -> str:
         'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
         f'Target="{target}"/></Relationships>'
     )
+
+
+def _a1_letters(column: int) -> str:
+    letters: list[str] = []
+    while column:
+        column, remainder = divmod(column - 1, 26)
+        letters.append(chr(ord("A") + remainder))
+    return "".join(reversed(letters))
 
 
 def _inline_sheet(rows: list[list[tuple[str, str]]]) -> str:
@@ -95,6 +103,62 @@ def test_xlsx_without_shared_strings_uses_inline_values_and_rels():
     sheet_name, rows = parse_table(content, "signals.xlsx")
     assert sheet_name == "Signals"
     assert rows[0].cells == {"name": "CV01.RunCmd", "address": "%Q0.0"}
+
+
+def test_sparse_sheet_rejects_huge_a1_row():
+    content = _xlsx(
+        {
+            "xl/workbook.xml": _workbook("IO"),
+            "xl/_rels/workbook.xml.rels": _workbook_rels("worksheets/sheet1.xml"),
+            "xl/worksheets/sheet1.xml": _inline_sheet(
+                [
+                    [("A1", "name")],
+                    [(f"A{MAX_SHEET_ROWS + 1}", "bomb")],
+                ]
+            ),
+        }
+    )
+    sheet_name, rows = parse_table(content, "sparse-row.xlsx")
+    assert sheet_name == "unknown"
+    assert rows == ()
+
+
+def test_sparse_sheet_rejects_huge_a1_column():
+    wide = "A" * 4
+    content = _xlsx(
+        {
+            "xl/workbook.xml": _workbook("IO"),
+            "xl/_rels/workbook.xml.rels": _workbook_rels("worksheets/sheet1.xml"),
+            "xl/worksheets/sheet1.xml": _inline_sheet(
+                [
+                    [("A1", "name"), (f"{wide}1", "wide")],
+                    [("A2", "CV01.PEInfeed")],
+                ]
+            ),
+        }
+    )
+    sheet_name, rows = parse_table(content, "sparse-col.xlsx")
+    assert sheet_name == "unknown"
+    assert rows == ()
+
+
+def test_sparse_sheet_rejects_declared_column_past_cap():
+    over = _a1_letters(MAX_SHEET_COLUMNS + 1)
+    content = _xlsx(
+        {
+            "xl/workbook.xml": _workbook("IO"),
+            "xl/_rels/workbook.xml.rels": _workbook_rels("worksheets/sheet1.xml"),
+            "xl/worksheets/sheet1.xml": _inline_sheet(
+                [
+                    [("A1", "name"), (f"{over}1", "wide")],
+                    [("A2", "CV01.PEInfeed")],
+                ]
+            ),
+        }
+    )
+    sheet_name, rows = parse_table(content, "wide-col.xlsx")
+    assert sheet_name == "unknown"
+    assert rows == ()
 
 
 def test_nested_xlsx_zip_bomb_is_not_expanded():

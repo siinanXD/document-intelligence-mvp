@@ -22,6 +22,14 @@ _REL_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"
 _DOC_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 _PDF_STRING = re.compile(rb"\((?:\\.|[^\\)])*\) Tj")
 
+# Dense-grid caps. A1 references are attacker-controlled; expanding to the
+# declared row/column without a bound can OOM the shared ingestion worker.
+MAX_SHEET_ROWS = 4_096
+MAX_SHEET_COLUMNS = 64
+MAX_SHEET_CELLS = 65_536
+_MAX_ROW_DIGITS = 5
+_MAX_COLUMN_LETTERS = 3
+
 
 @dataclass(frozen=True)
 class TableRow:
@@ -116,7 +124,7 @@ def _parse_xlsx(content: bytes) -> tuple[str, tuple[TableRow, ...]]:
                 else []
             )
             matrix = _sheet_matrix(archive.read(sheet_path), strings)
-    except (KeyError, zipfile.BadZipFile, ElementTree.ParseError, ValueError):
+    except (KeyError, zipfile.BadZipFile, ElementTree.ParseError, ValueError, MemoryError):
         return "unknown", ()
     return sheet_name, _rows_from_matrix(matrix, sheet_name)
 
@@ -149,24 +157,54 @@ def _shared_strings(sst_xml: bytes) -> list[str]:
     return strings
 
 
+def _a1_column(reference: str) -> int:
+    column_match = re.match(r"([A-Z]+)", reference)
+    if not column_match:
+        return 0
+    letters = column_match.group(1)
+    if len(letters) > _MAX_COLUMN_LETTERS:
+        raise ValueError("sheet column exceeds limit")
+    column = 0
+    for character in letters:
+        column = column * 26 + ord(character) - ord("A") + 1
+    if column > MAX_SHEET_COLUMNS:
+        raise ValueError("sheet column exceeds limit")
+    return column
+
+
+def _sheet_row_number(raw: str | None, fallback: int) -> int:
+    if raw is None:
+        number = fallback
+    else:
+        if not raw.isdigit() or len(raw) > _MAX_ROW_DIGITS:
+            raise ValueError("sheet row exceeds limit")
+        number = int(raw)
+    if number < 1 or number > MAX_SHEET_ROWS:
+        raise ValueError("sheet row exceeds limit")
+    return number
+
+
 def _sheet_matrix(sheet_xml: bytes, strings: list[str]) -> list[list[str]]:
     root = ElementTree.fromstring(sheet_xml)
     matrix: list[list[str]] = []
+    allocated = 0
     for row in root.iter(f"{_S_NS}row"):
-        row_number = int(row.get("r", len(matrix) + 1))
+        row_number = _sheet_row_number(row.get("r"), len(matrix) + 1)
         while len(matrix) < row_number:
             matrix.append([])
         values = matrix[row_number - 1]
         for cell in row.findall(f"{_S_NS}c"):
-            reference = cell.get("r", "")
-            column = 0
-            column_match = re.match(r"([A-Z]+)", reference)
-            for character in column_match.group(1) if column_match else "":
-                column = column * 26 + ord(character) - ord("A") + 1
+            column = _a1_column(cell.get("r", ""))
             if not column:
                 column = len(values) + 1
+            if column > MAX_SHEET_COLUMNS:
+                raise ValueError("sheet column exceeds limit")
+            extra = max(0, column - len(values))
+            if allocated + extra > MAX_SHEET_CELLS:
+                raise ValueError("sheet cell count exceeds limit")
             while len(values) < column:
                 values.append("")
+            allocated += extra
             value = cell.find(f"{_S_NS}v")
             if cell.get("t") == "inlineStr":
                 values[column - 1] = "".join(node.text or "" for node in cell.iter(f"{_S_NS}t"))
