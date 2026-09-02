@@ -8,8 +8,12 @@ from dataclasses import dataclass
 import pytest
 from pydantic import BaseModel
 
-from app.providers.base import EmbeddingProvider, LLMProvider
+from app.providers.base import EmbeddingProvider, LLMProvider, RerankerProvider
 from app.providers.generation import GenerationResult
+from app.providers.huggingface_provider import (
+    HuggingFaceEmbeddingProvider,
+    HuggingFaceReranker,
+)
 from app.providers.openai_provider import (
     OpenAIEmbeddingProvider,
     OpenAILLMProvider,
@@ -20,6 +24,7 @@ from app.providers.registry import (
     ProviderConfigurationError,
     get_embedding_provider,
     get_llm_provider,
+    get_reranker,
 )
 from app.providers.storage import StorageBackend
 
@@ -49,7 +54,7 @@ class _FakeOpenAIClient:
 
 
 def test_interfaces_cannot_be_instantiated():
-    for interface in (EmbeddingProvider, LLMProvider, StorageBackend):
+    for interface in (EmbeddingProvider, LLMProvider, RerankerProvider, StorageBackend):
         with pytest.raises(TypeError):
             interface()
 
@@ -192,6 +197,69 @@ def test_registry_builds_configured_providers_without_calling_out(monkeypatch):
     assert embeddings.model == "text-embedding-3-large"
     assert embeddings.dimensions == 3072
     assert llm.model == "gpt-4o"
+
+
+def test_registry_switches_to_huggingface_by_configuration_alone(monkeypatch):
+    """The provider switch is environment variables only - no code change."""
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("EMBEDDING_PROVIDER", "huggingface")
+    monkeypatch.setenv("EMBEDDING_MODEL", "BAAI/bge-m3")
+    monkeypatch.setenv("EMBEDDING_VERSION", "v2")
+    monkeypatch.setenv("HUGGINGFACE_EMBEDDINGS_BASE_URL", "http://embeddings.internal:8080")
+    monkeypatch.setenv("HUGGINGFACE_EMBEDDING_DIMENSIONS", "1024")
+
+    embeddings = get_embedding_provider()
+
+    assert isinstance(embeddings, HuggingFaceEmbeddingProvider)
+    assert embeddings.provider == "huggingface"
+    assert embeddings.model == "BAAI/bge-m3"
+    assert embeddings.version == "v2"
+    assert embeddings.dimensions == 1024
+
+
+def test_registry_refuses_huggingface_without_a_base_url(monkeypatch):
+    monkeypatch.setenv("EMBEDDING_PROVIDER", "huggingface")
+    monkeypatch.delenv("HUGGINGFACE_EMBEDDINGS_BASE_URL", raising=False)
+    monkeypatch.setenv("HUGGINGFACE_EMBEDDING_DIMENSIONS", "1024")
+
+    with pytest.raises(ProviderConfigurationError, match="HUGGINGFACE_EMBEDDINGS_BASE_URL"):
+        get_embedding_provider()
+
+
+def test_registry_refuses_huggingface_without_declared_dimensions(monkeypatch):
+    """Guessing the width would corrupt the collection; it must be declared."""
+    monkeypatch.setenv("EMBEDDING_PROVIDER", "huggingface")
+    monkeypatch.setenv("HUGGINGFACE_EMBEDDINGS_BASE_URL", "http://embeddings.internal:8080")
+    monkeypatch.delenv("HUGGINGFACE_EMBEDDING_DIMENSIONS", raising=False)
+
+    with pytest.raises(ProviderConfigurationError, match="HUGGINGFACE_EMBEDDING_DIMENSIONS"):
+        get_embedding_provider()
+
+
+def test_reranking_is_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("RERANKER_PROVIDER", raising=False)
+
+    assert get_reranker() is None
+
+
+def test_registry_builds_the_configured_reranker(monkeypatch):
+    monkeypatch.setenv("RERANKER_PROVIDER", "huggingface")
+    monkeypatch.setenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
+    monkeypatch.setenv("HUGGINGFACE_RERANK_BASE_URL", "http://rerank.internal:8080")
+
+    reranker = get_reranker()
+
+    assert isinstance(reranker, HuggingFaceReranker)
+    assert reranker.provider == "huggingface"
+    assert reranker.model == "BAAI/bge-reranker-v2-m3"
+
+
+def test_registry_refuses_a_reranker_without_a_base_url(monkeypatch):
+    monkeypatch.setenv("RERANKER_PROVIDER", "huggingface")
+    monkeypatch.delenv("HUGGINGFACE_RERANK_BASE_URL", raising=False)
+
+    with pytest.raises(ProviderConfigurationError, match="HUGGINGFACE_RERANK_BASE_URL"):
+        get_reranker()
 
 
 async def test_registry_wires_generation_settings_into_the_provider(monkeypatch):

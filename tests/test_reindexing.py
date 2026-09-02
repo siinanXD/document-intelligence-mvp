@@ -14,8 +14,8 @@ from app.services.reindexing import (
     reindex_tenant,
 )
 from app.services.retrieval import search
-from app.services.vector_store import DocumentVectorStore, VectorStoreService
-from tests.test_indexing import _FakeEmbeddings
+from app.services.vector_store import DocumentVectorStore, VectorStoreError, VectorStoreService
+from tests.test_indexing import DIMENSIONS, _FakeEmbeddings
 
 
 @pytest_asyncio.fixture
@@ -254,3 +254,65 @@ async def test_reindex_surfaces_a_provider_outage_as_reindex_error(
         await reindex_document(
             db_session, _Down(), chunk_store, tenant_id=tenant.id, document_id=document.id
         )
+
+
+class _FakeHuggingFaceEmbeddings(_FakeEmbeddings):
+    """The same deterministic vectors under a different provider identity."""
+
+    provider = "huggingface"
+    model = "BAAI/bge-m3"
+
+
+async def test_switching_the_embedding_provider_needs_only_a_reindex(
+    db_session, stores, tenant, make_document
+):
+    """SIN-71: OpenAI -> Hugging Face is a configuration change plus a reindex."""
+    chunk_store, _ = stores
+    document = await _ready_document(
+        db_session, tenant, make_document, ["Payment is due within thirty days."]
+    )
+    old = _FakeEmbeddings()
+    await index_document(db_session, old, chunk_store, tenant_id=tenant.id, document_id=document.id)
+
+    new = _FakeHuggingFaceEmbeddings()
+    # Before the reindex, the stale points are dropped rather than returned as
+    # if they lived in the new provider's embedding space.
+    assert is_current_embedding(document, new) is False
+    assert (
+        await search(db_session, new, chunk_store, tenant_id=tenant.id, query="payment", limit=5)
+        == []
+    )
+
+    outcome = await reindex_document(
+        db_session, new, chunk_store, tenant_id=tenant.id, document_id=document.id
+    )
+
+    assert outcome.stale_before is True
+    assert document.embedding_provider == "huggingface"
+    assert document.embedding_model == "BAAI/bge-m3"
+    hits = await search(db_session, new, chunk_store, tenant_id=tenant.id, query="payment", limit=5)
+    assert [hit.document_id for hit in hits] == [document.id]
+
+
+async def test_a_dimension_change_fails_closed_before_any_write(
+    db_session, stores, tenant, make_document
+):
+    """A provider with a different width must not touch the old collection."""
+    chunk_store, _ = stores
+    document = await _ready_document(
+        db_session, tenant, make_document, ["Payment is due within thirty days."]
+    )
+    old = _FakeEmbeddings()
+    await index_document(db_session, old, chunk_store, tenant_id=tenant.id, document_id=document.id)
+
+    class _Wider(_FakeHuggingFaceEmbeddings):
+        dimensions = DIMENSIONS * 2
+
+    with pytest.raises(VectorStoreError, match="dimensions"):
+        await reindex_document(
+            db_session, _Wider(), chunk_store, tenant_id=tenant.id, document_id=document.id
+        )
+
+    # The existing vectors survived and still answer for the old provider.
+    hits = await search(db_session, old, chunk_store, tenant_id=tenant.id, query="payment", limit=5)
+    assert [hit.document_id for hit in hits] == [document.id]
