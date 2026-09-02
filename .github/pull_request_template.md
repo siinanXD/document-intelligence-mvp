@@ -23,6 +23,17 @@ pytest
 
 -
 
+## Risk assessment
+
+<!-- Guarded auto-merge policy, docs/AUTOMATIONS.md. If any mandatory
+human-gate category applies (auth, tenant isolation, secrets, deployment,
+destructive migrations, deletion/retention, GitHub Actions/permissions,
+major dependency upgrades, paid providers, Safety PLC, machine control,
+protected PLC blocks), list it here and add the owner-approval-required
+label. Otherwise state "low risk - eligible for guarded auto-merge". -->
+
+-
+
 ## Checklist
 
 - [ ] Scope matches a single Linear issue

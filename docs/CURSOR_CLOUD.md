@@ -25,7 +25,7 @@ No local desktop or laptop is part of that runtime path.
 3. Tell it to inspect the issue, current `main`, `CLAUDE.md`, `AGENTS.md` and `docs/agent-workflow.md` before changing code.
 4. Let it work on the Linear issue branch, run the relevant tests, push and open/update the PR.
 5. Review the PR from the phone. GitHub CI plus the configured Codex/Copilot review loop remains the merge gate.
-6. Do not merge until CI and verified review findings are clean.
+6. Merging follows the guarded auto-merge policy in `docs/AUTOMATIONS.md`: eligible low-risk PRs squash auto-merge once CI and verified review findings are clean; high-risk PRs carry `owner-approval-required` and wait for one owner decision.
 
 A useful task prompt is:
 

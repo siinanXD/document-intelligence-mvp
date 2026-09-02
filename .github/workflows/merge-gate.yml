@@ -1,0 +1,37 @@
+# Mechanical guard for the risk policy in docs/AUTOMATIONS.md.
+#
+# This is deliberately a separate workflow from ci.yml: it must rerun on
+# labeled/unlabeled events, and adding those event types to ci.yml would
+# cancel and restart the full test matrix (shared concurrency group) every
+# time a label changes. This job runs no tests and duplicates nothing.
+#
+# When the owner-approval-required label is present the check fails, so
+# GitHub auto-merge cannot complete while a high-risk change awaits the
+# owner's decision. Configure `merge-gate` as a required status check on
+# main (see docs/AUTOMATIONS.md, owner activation checklist).
+name: Merge gate
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: merge-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  merge-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Block merge while owner approval is required
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          if [[ ",${LABELS}," == *",owner-approval-required,"* ]]; then
+            echo "::error::owner-approval-required is set - this pull request needs one explicit repository-owner decision before it can merge (docs/AUTOMATIONS.md, risk policy)"
+            exit 1
+          fi
+          echo "no owner gate label present - merge gate open"
