@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import io
+import posixpath
 import re
 import zipfile
 from dataclasses import dataclass
@@ -15,6 +16,8 @@ from typing import Any
 from xml.etree import ElementTree
 
 _S_NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+_REL_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"
+_DOC_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 _PDF_STRING = re.compile(rb"\((?:\\.|[^\\)])*\) Tj")
 
 
@@ -102,19 +105,37 @@ def _parse_delimited(
 def _parse_xlsx(content: bytes) -> tuple[str, tuple[TableRow, ...]]:
     try:
         with zipfile.ZipFile(io.BytesIO(content)) as archive:
-            sheet_name = _workbook_sheet_name(archive.read("xl/workbook.xml"))
-            strings = _shared_strings(archive.read("xl/sharedStrings.xml"))
-            matrix = _sheet_matrix(archive.read("xl/worksheets/sheet1.xml"), strings)
+            workbook = archive.read("xl/workbook.xml")
+            sheet_name, sheet_path = _workbook_sheet(archive, workbook)
+            strings = (
+                _shared_strings(archive.read("xl/sharedStrings.xml"))
+                if "xl/sharedStrings.xml" in archive.namelist()
+                else []
+            )
+            matrix = _sheet_matrix(archive.read(sheet_path), strings)
     except (KeyError, zipfile.BadZipFile, ElementTree.ParseError, ValueError):
         return "unknown", ()
     return sheet_name, _rows_from_matrix(matrix, sheet_name)
 
 
-def _workbook_sheet_name(workbook_xml: bytes) -> str:
+def _workbook_sheet(archive: zipfile.ZipFile, workbook_xml: bytes) -> tuple[str, str]:
     root = ElementTree.fromstring(workbook_xml)
     sheet = root.find(f".//{_S_NS}sheet")
     name = sheet.get("name") if sheet is not None else None
-    return name or "Sheet1"
+    relationship_id = sheet.get(f"{{{_DOC_REL_NS}}}id") if sheet is not None else None
+    target = None
+    if relationship_id:
+        rels = ElementTree.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+        for relationship in rels.findall(f"{_REL_NS}Relationship"):
+            if relationship.get("Id") == relationship_id:
+                target = relationship.get("Target")
+                break
+    if not target:
+        target = "worksheets/sheet1.xml"
+    sheet_path = posixpath.normpath(posixpath.join("xl", target.lstrip("/")))
+    if sheet_path not in archive.namelist():
+        raise KeyError(sheet_path)
+    return name or "Sheet1", sheet_path
 
 
 def _shared_strings(sst_xml: bytes) -> list[str]:
@@ -129,17 +150,29 @@ def _sheet_matrix(sheet_xml: bytes, strings: list[str]) -> list[list[str]]:
     root = ElementTree.fromstring(sheet_xml)
     matrix: list[list[str]] = []
     for row in root.iter(f"{_S_NS}row"):
-        values: list[str] = []
+        row_number = int(row.get("r", len(matrix) + 1))
+        while len(matrix) < row_number:
+            matrix.append([])
+        values = matrix[row_number - 1]
         for cell in row.findall(f"{_S_NS}c"):
-            value = cell.find(f"{_S_NS}v")
-            if value is None or value.text is None:
+            reference = cell.get("r", "")
+            column = 0
+            column_match = re.match(r"([A-Z]+)", reference)
+            for character in column_match.group(1) if column_match else "":
+                column = column * 26 + ord(character) - ord("A") + 1
+            if not column:
+                column = len(values) + 1
+            while len(values) < column:
                 values.append("")
-                continue
-            if cell.get("t") == "s":
-                values.append(strings[int(value.text)])
+            value = cell.find(f"{_S_NS}v")
+            if cell.get("t") == "inlineStr":
+                values[column - 1] = "".join(node.text or "" for node in cell.iter(f"{_S_NS}t"))
+            elif value is None or value.text is None:
+                values[column - 1] = ""
+            elif cell.get("t") == "s":
+                values[column - 1] = strings[int(value.text)]
             else:
-                values.append(value.text)
-        matrix.append(values)
+                values[column - 1] = value.text
     return matrix
 
 

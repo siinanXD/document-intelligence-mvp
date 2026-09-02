@@ -235,7 +235,6 @@ class TabularAdapter(EngineeringAdapter):
                     payload={
                         "sheet_name": sheet_name,
                         "row_number": row.row_number,
-                        "cells": row.cells,
                     },
                     evidence={
                         "locator_kind": "sheet_cell",

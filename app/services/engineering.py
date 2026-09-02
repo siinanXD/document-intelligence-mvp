@@ -5,7 +5,7 @@ and relations require at least one evidence locator in the same tenant.
 Human overrides never delete the row they correct.
 """
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.engineering_models import (
@@ -594,6 +594,25 @@ async def clear_package_identities(
     for candidate in candidates:
         candidate.canonical_entity_id = None
     await session.flush()
+    subject_ids = {
+        kind: [row.id for row in rows]
+        for kind, rows in (
+            (EvidenceSubjectKind.conflict, conflicts),
+            (EvidenceSubjectKind.entity_candidate, candidates),
+            (EvidenceSubjectKind.entity, entities),
+        )
+    }
+    evidence_ids = (
+        await session.execute(
+            select(EvidenceBinding.evidence_id).where(
+                EvidenceBinding.tenant_id == tenant_id,
+                EvidenceBinding.subject_kind.in_(subject_ids),
+                EvidenceBinding.subject_id.in_(
+                    [item for ids in subject_ids.values() for item in ids]
+                ),
+            )
+        )
+    ).scalars().all()
     for kind, rows in (
         (EvidenceSubjectKind.conflict, conflicts),
         (EvidenceSubjectKind.entity_candidate, candidates),
@@ -615,6 +634,18 @@ async def clear_package_identities(
             EvidenceSubjectKind.entity: EngineeringEntity,
         }[kind]
         await session.execute(delete(model).where(model.tenant_id == tenant_id, model.id.in_(ids)))
+    await session.execute(
+        delete(EvidenceReference).where(
+            EvidenceReference.tenant_id == tenant_id,
+            EvidenceReference.id.in_(evidence_ids),
+            ~exists(
+                select(EvidenceBinding.id).where(
+                    EvidenceBinding.tenant_id == EvidenceReference.tenant_id,
+                    EvidenceBinding.evidence_id == EvidenceReference.id,
+                )
+            ),
+        )
+    )
     await session.flush()
 
 

@@ -93,12 +93,6 @@ async def resolve_package_identities(
         payload=payload,
         class_by_path=class_by_path,
     )
-    await engineering.clear_package_identities(
-        session,
-        tenant_id=document.tenant_id,
-        package_id=package.id,
-        methods=(RESOLVER_METHOD, EXTRACTOR_METHOD),
-    )
     if not mentions:
         logger.info(
             "package identities empty",
@@ -109,6 +103,12 @@ async def resolve_package_identities(
             },
         )
         return []
+    await engineering.clear_package_identities(
+        session,
+        tenant_id=document.tenant_id,
+        package_id=package.id,
+        methods=(RESOLVER_METHOD, EXTRACTOR_METHOD),
+    )
 
     entities = await _persist_resolution(
         session,
