@@ -27,4 +27,4 @@ every automation.
 | `1-implement-next-linear-issue.md` | Implement next Linear issue | Linear: status changed |
 | `2-repair-failed-ci.md` | Repair failed CI | GitHub: CI completed / workflow run completed |
 | `3-repair-review-findings.md` | Repair review findings | GitHub: review + PR pushed events |
-| `4-guarded-auto-merge-and-continue.md` | Guarded auto-merge and continue | GitHub: CI completed, review events, PR merged |
+| `4-guarded-auto-merge-and-continue.md` | Guarded auto-merge and continue | GitHub: PR CI success, review events, PR merged, **main** CI completed (success or failure) |

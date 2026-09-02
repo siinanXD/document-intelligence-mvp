@@ -43,7 +43,7 @@ Merging follows the guarded auto-merge policy in `docs/AUTOMATIONS.md`:
 
 * A low-risk PR that passes the full eligibility checklist there (one Linear issue, test evidence for every acceptance criterion, all required checks green on the current head, mergeable on current `main`, no unresolved valid review finding, no secrets, no paid provider calls, no weakened tests) is squash auto-merged without owner approval.
 * A PR touching any mandatory human-gate category (authentication/authorization, tenant isolation, secrets, deployment/infrastructure, destructive migrations, deletion/retention semantics, GitHub Actions/permissions, major dependency upgrades, paid live-provider execution, Safety PLC behavior, machine control, protected PLC blocks, ambiguous acceptance criteria, reviewer-classified high risk) is fully prepared, labeled `owner-approval-required`, and stops for one explicit owner decision. The `merge-gate` check fails while that label is present.
-* Squash is the only merge method. The Linear issue moves to Done only after the PR is actually merged and `main` CI is green.
+* Squash is the only merge method. The Linear issue moves to Done only after the PR is actually merged **and** `main` CI has completed successfully (Automation 4 Case C). The PR-merged event alone must not mark Done. A red `main` CI run is recovered by Automation 4 Case D (one recovery PR or owner escalation), not by Automation 2.
 
 ## Rules
 

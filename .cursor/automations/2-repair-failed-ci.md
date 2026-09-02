@@ -3,8 +3,10 @@
 ## Trigger
 
 - Source: **GitHub - CI completed** (and **Workflow run completed**).
-- Filter: conclusion is **failure**, on a pull request branch of
+- Filter: conclusion is **failure**, on an **open pull request branch** of
   `siinanXD/document-intelligence-mvp`.
+- This automation never handles CI on `main`. Post-merge main CI is owned
+  by Automation 4 (Case C on success, Case D on failure).
 
 ## Repository
 
@@ -24,6 +26,8 @@ guarded delivery loop defined in docs/AUTOMATIONS.md.
 
 Skip conditions - do nothing (end the run immediately) when any of these
 holds:
+- The failure is on branch `main` rather than an open pull request (Automation
+  4 Case D owns red main CI).
 - The PR is from a fork (head repository differs from the base repository).
 - The PR is closed or already merged.
 - The failure is not on an issue PR of this loop (no Linear issue reference).

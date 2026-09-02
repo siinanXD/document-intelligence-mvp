@@ -86,6 +86,30 @@ Automation 4 enables squash auto-merge only after verifying all of:
 11. The risk policy above allows automatic merge (no human-gate category, no
     `owner-approval-required` label).
 
+## Post-merge continuation and red-main recovery
+
+The `pull_request` merged event fires before `.github/workflows/ci.yml` can
+finish on `main`. Automation 4 therefore splits post-merge work:
+
+| Event | Case | Allowed actions |
+| --- | --- | --- |
+| PR merged | B | Leave the Linear issue In Review. Comment that Done waits for `main` CI. Do not mark Done. Do not start the next issue. If `main` CI is already terminal in the same run, jump to C or D. |
+| CI / workflow completed on `main`, success | C | Only now attach evidence, move Linear to Done, and select the next unblocked Todo issue. |
+| CI / workflow completed on `main`, failure | D | Reachable recovery: keep the same Linear issue In Review, open one recovery PR from current `main` (same issue, not a replacement of an open PR) or escalate to the owner. Never push to `main`. |
+
+Automation 2 cannot own red `main` CI: it is scoped to open pull-request
+branches, skips merged PRs, and must not create a replacement PR. Case D is
+the path that makes recovery reachable again (an open recovery PR that
+Automation 2 can then repair, at most three rounds) or escalates to the
+owner. After three unsuccessful recovery rounds, or when no safe automated
+fix exists, Case D posts the blocker on GitHub and Linear, adds
+`owner-approval-required` when a recovery PR exists, and stops. Linear does
+not stay In Review with no actor: either a recovery PR is open, or the owner
+has an explicit decision request.
+
+High-risk recovery changes still take the `owner-approval-required` gate and
+do not auto-merge.
+
 ## Safety and cost bounds
 
 - Maximum one active implementation issue / implementation PR at a time.
@@ -109,14 +133,16 @@ Cloud Agent compute the run consumes). What bounds spend:
 - One implementation issue at a time - Automation 1 exits immediately (a short,
   cheap run) when another implementation PR is active or the issue is blocked.
 - Three repair rounds per failing condition cap CI/review repair loops.
-- CI-completed and review triggers fire only on the single active PR; agents
-  exit early when there is nothing valid to fix.
+- PR CI-completed and review triggers fire only on the single active PR;
+  agents exit early when there is nothing valid to fix. The extra `main` CI
+  trigger is one short run per merge (Case C or D).
 - Runs reuse the prebuilt environment (`.cursor/environment.json` build), so
   install cost is paid at build time, not per run.
 - Normal runs use no paid provider APIs; tests mock all providers.
 
 A typical issue therefore costs one implementation run, zero to three short
-repair runs, and one merge/continue run. Deactivate the automations at
+repair runs, one merge-eligibility run, one PR-merged acknowledgement, and
+one `main` CI continue/recovery run. Deactivate the automations at
 [cursor.com/automations](https://cursor.com/automations) to pause the loop at
 any time.
 
@@ -188,11 +214,16 @@ Each step uses a disposable low-risk change (docs/fixture/test only).
    and one concise decision request.
 6. **Guarded auto-merge** - after the low-risk PR is green with reviews clean,
    expect squash auto-merge to complete without owner action.
-7. **Linear Done timing** - verify the issue moves to Done only after the PR
-   is actually merged and `main` CI is green, with the PR and final test
-   evidence attached to the issue.
+7. **Linear Done timing** - after squash merge, the issue must stay In Review
+   until the `main` CI-completed event (Automation 4 Case C). Only then attach
+   evidence, move the issue to Done, and start the next unblocked Todo issue.
+   The PR-merged event alone must not mark Done.
 8. **Sequencing** - with two Todo issues where one blocks the other, verify
    only the unblocked one starts, and the second starts only after the first
    is Done and merged.
+9. **Red main CI** - after a merge whose `main` CI fails, Automation 4 Case D
+   must open one recovery PR for the same Linear issue or escalate to the
+   owner. Automation 2 must not be the only recovery path. Linear must not
+   stay In Review with no open recovery PR and no owner decision request.
 
 Record the outcomes on SIN-105 before relying on the loop unattended.
