@@ -217,6 +217,7 @@ async def test_different_bytes_are_not_a_duplicate(api, api_tenant):
         ("archive.zip", b"not-a-zip", "application/zip", 415),
         ("contract.pdf", b"<html>not a pdf</html>", "application/pdf", 415),
         ("contract.pdf", b"%PDF-1.7", "text/html", 415),
+        ("facts.json", b'{"ok": true}', "application/json", 415),
         ("empty.pdf", b"", "application/pdf", 400),
     ],
 )

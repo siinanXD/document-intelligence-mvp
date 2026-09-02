@@ -18,10 +18,21 @@ from app.models import DocumentStatus
 from app.providers.local_storage import LocalStorageBackend
 from app.services import jobs as jobs_service
 from app.services.deletion import delete_document
-from app.services.engineering import list_package_documents, list_packages
-from app.services.package_intake import adapter_key_for, ingest_artifact
+from app.services.engineering import (
+    add_package_document,
+    create_package,
+    get_package,
+    list_package_documents,
+    list_packages,
+)
+from app.services.package_intake import (
+    adapter_key_for,
+    ingest_artifact,
+    is_search_skippable,
+    package_slug_for,
+)
 from app.services.processing import process_job
-from app.services.uploads import validate_upload
+from app.services.uploads import UnsupportedFileType, validate_upload
 from tests.test_processing import _FakeParser
 
 
@@ -166,6 +177,7 @@ async def test_zip_intake_stores_members_and_skips_docling(
     assert await storage.exists(adapter_key_for(document)) is False
     for key in payload["member_storage_keys"]:
         assert await storage.exists(key) is False
+    assert await list_packages(db_session, tenant_id=tenant.id) == []
 
 
 async def test_zip_intake_is_tenant_scoped(
@@ -202,6 +214,127 @@ async def test_unsafe_zip_fails_processing(db_session, storage, tenant, make_doc
     document, job = await _queued_zip(db_session, storage, tenant, make_document, content)
     with pytest.raises(PackageRejected):
         await process_job(db_session, storage, _FakeParser(), job=job)
+
+
+async def test_reprocessing_a_zip_reuses_the_existing_package(
+    db_session, storage, tenant, make_document
+):
+    content = _zip_bytes({"readme.md": b"# line\n"})
+    document, job = await _queued_zip(db_session, storage, tenant, make_document, content)
+    await process_job(db_session, storage, _FakeParser(), job=job)
+    first = await list_packages(db_session, tenant_id=tenant.id)
+    assert len(first) == 1
+    await process_job(db_session, storage, _FakeParser(), job=job)
+    again = await list_packages(db_session, tenant_id=tenant.id)
+    assert [row.id for row in again] == [first[0].id]
+    membership = await list_package_documents(
+        db_session, tenant_id=tenant.id, package_id=first[0].id
+    )
+    assert [row.document_id for row in membership] == [document.id]
+    assert document.status == DocumentStatus.ready
+    payload = json.loads(await storage.get(adapter_key_for(document)))
+    assert payload["package_id"] == str(first[0].id)
+
+
+def test_json_is_rejected_until_an_adapter_exists():
+    assert is_search_skippable("application/json") is False
+    with pytest.raises(UnsupportedFileType, match="unsupported file extension"):
+        validate_upload(
+            filename="facts.json",
+            declared_mime_type="application/json",
+            content=b'{"ok": true}',
+            max_bytes=1024,
+        )
+    with pytest.raises(UnsupportedFileType, match="unsupported file extension"):
+        validate_upload(
+            filename="facts.json",
+            declared_mime_type="application/json",
+            content=b"{invalid",
+            max_bytes=1024,
+        )
+
+
+async def test_deleting_a_zip_removes_its_generated_package(
+    db_session, storage, tenant, other_tenant, make_document
+):
+    content = _zip_bytes({"readme.md": b"# line\n"})
+    document, job = await _queued_zip(db_session, storage, tenant, make_document, content)
+    await process_job(db_session, storage, _FakeParser(), job=job)
+    other, other_job = await _queued_zip(db_session, storage, other_tenant, make_document, content)
+    await process_job(db_session, storage, _FakeParser(), job=other_job)
+    assert await list_packages(db_session, tenant_id=tenant.id)
+    await delete_document(db_session, storage, tenant_id=tenant.id, document_id=document.id)
+    assert await list_packages(db_session, tenant_id=tenant.id) == []
+    remaining = await list_packages(db_session, tenant_id=other_tenant.id)
+    assert [row.id for row in remaining]
+    other_members = await list_package_documents(
+        db_session, tenant_id=other_tenant.id, package_id=remaining[0].id
+    )
+    assert [row.document_id for row in other_members] == [other.id]
+
+
+async def test_deleting_a_zip_keeps_a_package_that_still_has_members(
+    db_session, storage, tenant, make_document
+):
+    content = _zip_bytes({"readme.md": b"# line\n"})
+    document, job = await _queued_zip(db_session, storage, tenant, make_document, content)
+    await process_job(db_session, storage, _FakeParser(), job=job)
+    packages = await list_packages(db_session, tenant_id=tenant.id)
+    extra = await make_document(tenant, filename="notes.md", mime_type="text/markdown")
+    await add_package_document(
+        db_session,
+        tenant_id=tenant.id,
+        package_id=packages[0].id,
+        document_id=extra.id,
+        relative_path="notes.md",
+    )
+    await delete_document(db_session, storage, tenant_id=tenant.id, document_id=document.id)
+    remaining = await list_packages(db_session, tenant_id=tenant.id)
+    assert [row.id for row in remaining] == [packages[0].id]
+    members = await list_package_documents(
+        db_session, tenant_id=tenant.id, package_id=packages[0].id
+    )
+    assert [row.document_id for row in members] == [extra.id]
+
+
+async def test_deleting_a_non_zip_does_not_drop_a_package_that_shares_the_generated_slug(
+    db_session, storage, tenant, make_document
+):
+    document = await make_document(tenant, filename="notes.md", mime_type="text/markdown")
+    document.storage_key = f"{tenant.id}/{document.id}/notes.md"
+    await db_session.flush()
+    await storage.put(document.storage_key, b"# notes\n")
+    human = await create_package(
+        db_session,
+        tenant_id=tenant.id,
+        slug=package_slug_for(document),
+        name="Human package",
+    )
+    await delete_document(db_session, storage, tenant_id=tenant.id, document_id=document.id)
+    kept = await get_package(db_session, tenant_id=tenant.id, package_id=human.id)
+    assert kept is not None
+    assert kept.id == human.id
+
+
+async def test_zip_intake_does_not_take_over_a_user_package_with_the_same_slug(
+    db_session, storage, tenant, make_document
+):
+    content = _zip_bytes({"readme.md": b"# line\n"})
+    document, job = await _queued_zip(db_session, storage, tenant, make_document, content)
+    human = await create_package(
+        db_session,
+        tenant_id=tenant.id,
+        slug=package_slug_for(document),
+        name="Human package",
+    )
+    await process_job(db_session, storage, _FakeParser(), job=job)
+    payload = json.loads(await storage.get(adapter_key_for(document)))
+    assert payload["package_id"] != str(human.id)
+    await delete_document(db_session, storage, tenant_id=tenant.id, document_id=document.id)
+    kept = await get_package(db_session, tenant_id=tenant.id, package_id=human.id)
+    assert kept is not None
+    remaining = await list_packages(db_session, tenant_id=tenant.id)
+    assert [row.id for row in remaining] == [human.id]
 
 
 def test_fixture_package_members_are_valid_uploads():

@@ -6,6 +6,7 @@ Adapters emit observations. Canonical entities are not written here.
 from __future__ import annotations
 
 import json
+import uuid
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,7 +30,6 @@ SEARCH_SKIPPABLE_MIMES = frozenset(
         "text/xml",
         "text/csv",
         "text/tab-separated-values",
-        "application/json",
         "text/x-scl",
         "text/x-awl",
     }
@@ -39,6 +39,24 @@ SEARCH_SKIPPABLE_MIMES = frozenset(
 def adapter_key_for(document: Document) -> str:
     """Where serialized adapter observations live, beside the original bytes."""
     return f"{document.storage_key}.adapter.json"
+
+
+def package_slug_for(document: Document) -> str:
+    """Stable tenant-scoped slug for the package generated from one archive."""
+    return f"pkg-{document.id.hex[:12]}"
+
+
+def recorded_package_id(payload: dict[str, Any] | None) -> uuid.UUID | None:
+    """Parse the package id zip intake persisted beside the archive."""
+    if not payload:
+        return None
+    raw = payload.get("package_id")
+    if not isinstance(raw, str) or not raw:
+        return None
+    try:
+        return uuid.UUID(raw)
+    except ValueError:
+        return None
 
 
 def is_search_skippable(mime_type: str) -> bool:
@@ -100,21 +118,86 @@ async def ingest_artifact(
     return payload
 
 
-async def delete_adapter_artifacts(storage: StorageBackend, *, document: Document) -> None:
+async def _load_adapter_payload(storage: StorageBackend, document: Document) -> dict[str, Any]:
+    key = adapter_key_for(document)
+    try:
+        raw = await storage.get(key)
+    except ObjectNotFoundError:
+        return {}
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+async def delete_adapter_artifacts(
+    storage: StorageBackend, *, document: Document
+) -> dict[str, Any]:
     """Remove observation JSON and unpacked members. Missing keys are fine."""
     key = adapter_key_for(document)
     try:
         raw = await storage.get(key)
     except ObjectNotFoundError:
-        return
+        return {}
     try:
-        payload = json.loads(raw)
+        parsed = json.loads(raw)
     except json.JSONDecodeError:
-        payload = {}
+        parsed = {}
+    payload = parsed if isinstance(parsed, dict) else {}
     for member_key in payload.get("member_storage_keys") or []:
         if isinstance(member_key, str):
             await storage.delete(member_key)
     await storage.delete(key)
+    return payload
+
+
+async def delete_generated_package(session: AsyncSession, *, tenant_id, package_id) -> None:
+    """Remove the archive's recorded package when no other members remain."""
+    if package_id is None:
+        return
+    package = await engineering.get_package(session, tenant_id=tenant_id, package_id=package_id)
+    if package is None:
+        return
+    remaining = await engineering.list_package_documents(
+        session, tenant_id=tenant_id, package_id=package.id
+    )
+    if remaining:
+        return
+    await engineering.delete_package(session, tenant_id=tenant_id, package_id=package.id)
+
+
+async def _package_for_archive(session: AsyncSession, storage: StorageBackend, document: Document):
+    """Reuse only a package this archive already owns, never a slug collision."""
+    recorded = recorded_package_id(await _load_adapter_payload(storage, document))
+    if recorded is not None:
+        owned = await engineering.get_package(
+            session, tenant_id=document.tenant_id, package_id=recorded
+        )
+        if owned is not None:
+            return owned
+    slug = package_slug_for(document)
+    existing = await engineering.get_package_by_slug(
+        session, tenant_id=document.tenant_id, slug=slug
+    )
+    if existing is not None:
+        memberships = await engineering.list_package_documents(
+            session, tenant_id=document.tenant_id, package_id=existing.id
+        )
+        if any(row.document_id == document.id for row in memberships):
+            return existing
+        slug = f"pkg-{document.id.hex}"
+        taken = await engineering.get_package_by_slug(
+            session, tenant_id=document.tenant_id, slug=slug
+        )
+        if taken is not None:
+            slug = f"pkg-{document.id.hex}-archive"
+    return await engineering.create_package(
+        session,
+        tenant_id=document.tenant_id,
+        slug=slug,
+        name="Uploaded package",
+    )
 
 
 async def _ingest_zip(
@@ -126,20 +209,19 @@ async def _ingest_zip(
     payload: dict[str, Any],
 ) -> None:
     members = safe_unpack(content)
-    package = await engineering.create_package(
-        session,
-        tenant_id=document.tenant_id,
-        slug=f"pkg-{document.id.hex[:12]}",
-        name="Uploaded package",
-    )
+    package = await _package_for_archive(session, storage, document)
     package.status = PackageStatus.draft
-    await engineering.add_package_document(
-        session,
-        tenant_id=document.tenant_id,
-        package_id=package.id,
-        document_id=document.id,
-        relative_path="",
+    memberships = await engineering.list_package_documents(
+        session, tenant_id=document.tenant_id, package_id=package.id
     )
+    if all(row.document_id != document.id for row in memberships):
+        await engineering.add_package_document(
+            session,
+            tenant_id=document.tenant_id,
+            package_id=package.id,
+            document_id=document.id,
+            relative_path="",
+        )
     payload["package_id"] = str(package.id)
 
     for member in members:
