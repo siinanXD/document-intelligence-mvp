@@ -12,6 +12,7 @@ from app.providers.registry import (
     ProviderConfigurationError,
     get_embedding_provider,
     get_llm_provider,
+    get_reranker,
 )
 from app.services.qa import AskResult, GroundedAnswer, ask
 from app.services.vector_store import VectorStoreError, VectorStoreService
@@ -128,6 +129,7 @@ async def ask_documents(session: SessionDep, tenant: TenantDep, request: AskRequ
     try:
         embeddings = get_embedding_provider()
         llm = get_llm_provider()
+        reranker = get_reranker()
     except ProviderConfigurationError as exc:
         logger.error("ask unavailable: an AI provider is not configured")
         raise HTTPException(
@@ -144,6 +146,7 @@ async def ask_documents(session: SessionDep, tenant: TenantDep, request: AskRequ
             question=request.question,
             limit=limit,
             document_ids=request.document_ids,
+            reranker=reranker,
         )
     except VectorStoreError as exc:
         logger.warning("ask failed against the vector store")

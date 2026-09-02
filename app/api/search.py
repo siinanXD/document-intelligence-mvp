@@ -14,7 +14,11 @@ from pydantic import BaseModel, Field
 
 from app.api.dependencies import SessionDep, TenantDep
 from app.core.settings import get_settings
-from app.providers.registry import ProviderConfigurationError, get_embedding_provider
+from app.providers.registry import (
+    ProviderConfigurationError,
+    get_embedding_provider,
+    get_reranker,
+)
 from app.services import lexical
 from app.services.retrieval import SearchHit, search
 from app.services.vector_store import VectorStoreError, VectorStoreService
@@ -111,10 +115,11 @@ async def search_documents(
 
     try:
         embeddings = get_embedding_provider()
+        reranker = get_reranker()
     except ProviderConfigurationError as exc:
         # A missing key is an operator problem, not the caller's fault, and the
         # message must not name the variable's value.
-        logger.error("search unavailable: embedding provider not configured")
+        logger.error("search unavailable: a search provider is not configured")
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, "search is not configured"
         ) from exc
@@ -128,6 +133,7 @@ async def search_documents(
             query=request.query,
             limit=limit,
             document_ids=request.document_ids,
+            reranker=reranker,
         )
     except VectorStoreError as exc:
         logger.warning("search failed against the vector store")
