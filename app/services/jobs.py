@@ -87,21 +87,25 @@ async def claim(session: AsyncSession, *, worker_id: str, limit: int = 1) -> lis
     if limit < 1:
         raise ValueError("limit must be at least 1")
 
+    # Materialization makes the bounded, locked selection execute exactly
+    # once. Without it PostgreSQL may inline/re-plan the IN subquery while
+    # synchronize_session="fetch" is also reconciling loaded objects.
     due = (
         select(IngestionJob.id)
         .where(
             IngestionJob.status == JobStatus.queued,
             IngestionJob.available_at <= func.now(),
         )
-        .order_by(IngestionJob.available_at, IngestionJob.created_at)
+        .order_by(IngestionJob.available_at, IngestionJob.created_at, IngestionJob.id)
         .limit(limit)
         .with_for_update(skip_locked=True)
-        .scalar_subquery()
+        .cte("due_jobs")
+        .prefix_with("MATERIALIZED", dialect="postgresql")
     )
 
     result = await session.execute(
         update(IngestionJob)
-        .where(IngestionJob.id.in_(due))
+        .where(IngestionJob.id.in_(select(due.c.id)))
         .values(
             status=JobStatus.processing,
             claimed_at=func.now(),
@@ -116,7 +120,8 @@ async def claim(session: AsyncSession, *, worker_id: str, limit: int = 1) -> lis
         # re-queues a job whose attempts are spent - retrying it forever.
         .execution_options(synchronize_session="fetch")
     )
-    return list(result.scalars().all())
+    claimed = list(result.scalars().all())
+    return sorted(claimed, key=lambda job: (job.available_at, job.created_at, job.id))
 
 
 async def finish(
