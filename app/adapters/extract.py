@@ -197,14 +197,14 @@ def _parse_xlsx(content: bytes) -> tuple[str, tuple[TableRow, ...]]:
     try:
         with zipfile.ZipFile(io.BytesIO(content)) as archive:
             assert_zip_directory_within_limits(archive)
-            workbook = archive.read("xl/workbook.xml")
+            workbook = _read_xlsx_part(archive, "xl/workbook.xml")
             sheet_name, sheet_path = _workbook_sheet(archive, workbook)
             strings = (
-                _shared_strings(archive.read("xl/sharedStrings.xml"))
+                _shared_strings(_read_xlsx_part(archive, "xl/sharedStrings.xml"))
                 if "xl/sharedStrings.xml" in archive.namelist()
                 else []
             )
-            matrix = _sheet_matrix(archive.read(sheet_path), strings)
+            matrix = _sheet_matrix(_read_xlsx_part(archive, sheet_path), strings)
     except (KeyError, zipfile.BadZipFile, ElementTree.ParseError, ValueError, MemoryError):
         return "unknown", ()
     return sheet_name, _rows_from_matrix(matrix, sheet_name)
@@ -217,15 +217,18 @@ def _workbook_sheet(archive: zipfile.ZipFile, workbook_xml: bytes) -> tuple[str,
     relationship_id = sheet.get(f"{{{_DOC_REL_NS}}}id") if sheet is not None else None
     target = None
     if relationship_id:
-        rels = _parse_xml(archive.read("xl/_rels/workbook.xml.rels"))
+        rels = _parse_xml(_read_xlsx_part(archive, "xl/_rels/workbook.xml.rels"))
         for relationship in rels.findall(f"{_REL_NS}Relationship"):
-            if relationship.get("Id") == relationship_id:
+            if (
+                relationship.get("Id") == relationship_id
+                and relationship.get("Type") == f"{_DOC_REL_NS}/worksheet"
+            ):
                 target = relationship.get("Target")
                 break
     if not target:
         target = "worksheets/sheet1.xml"
     sheet_path = posixpath.normpath(posixpath.join("xl", target.lstrip("/")))
-    if sheet_path not in archive.namelist():
+    if not sheet_path.startswith("xl/") or sheet_path not in archive.namelist():
         raise KeyError(sheet_path)
     return name or "Sheet1", sheet_path
 
@@ -312,6 +315,13 @@ def _parse_xml(content: bytes) -> ElementTree.Element:
     if len(content) > MAX_XLSX_XML_PART or _XML_DECLARATION.search(content):
         raise ValueError("xlsx XML part is unsafe")
     return ElementTree.fromstring(content)
+
+
+def _read_xlsx_part(archive: zipfile.ZipFile, path: str) -> bytes:
+    info = archive.getinfo(path)
+    if info.file_size > MAX_XLSX_XML_PART:
+        raise ValueError("xlsx XML part is too large")
+    return archive.read(info)
 
 
 def _rows_from_matrix(matrix: list[list[str]], sheet_name: str) -> tuple[TableRow, ...]:

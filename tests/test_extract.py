@@ -8,9 +8,9 @@ import zipfile
 from app.adapters.base import Artifact
 from app.adapters.extract import (
     MAX_PDF_STRINGS,
-    MAX_TEXT_PAGES,
     MAX_SHEET_COLUMNS,
     MAX_SHEET_ROWS,
+    MAX_TEXT_PAGES,
     extract_pdf_pages,
     extract_text_pages,
     parse_table,
@@ -111,6 +111,19 @@ def test_xlsx_without_shared_strings_uses_inline_values_and_rels():
     sheet_name, rows = parse_table(content, "signals.xlsx")
     assert sheet_name == "Signals"
     assert rows[0].cells == {"name": "CV01.RunCmd", "address": "%Q0.0"}
+
+
+def test_xlsx_rejects_relationship_target_outside_xl():
+    content = _xlsx(
+        {
+            "xl/workbook.xml": _workbook("IO"),
+            "xl/_rels/workbook.xml.rels": _workbook_rels("../secret.xml"),
+            "secret.xml": "<worksheet/>",
+        }
+    )
+    sheet_name, rows = parse_table(content, "signals.xlsx")
+    assert sheet_name == "unknown"
+    assert rows == ()
 
 
 def test_sparse_sheet_rejects_huge_a1_row():

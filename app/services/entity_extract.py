@@ -23,6 +23,7 @@ from app.engineering_models import EngineeringDocumentClass, EntityKind
 EXTRACTOR_METHOD = "deterministic_identifiers"
 EXTRACTOR_VERSION = "sin-91.1"
 MAX_IDENTIFIER_LENGTH = 255
+MAX_PAGE_MENTIONS = 65_536
 
 _SIGNAL = re.compile(r"\b((?:Line|CV\d{2})\.[A-Za-z][A-Za-z0-9]*)\b")
 _COMPONENT = re.compile(r"\b(CV\d{2}-[BMUS]\d+|CL12-[A-Z0-9-]+)\b")
@@ -589,6 +590,8 @@ def _from_pages(
                         revision_role="mention",
                     )
                 )
+                if len(mentions) >= MAX_PAGE_MENTIONS:
+                    return tuple(mentions)
     return tuple(mentions)
 
 

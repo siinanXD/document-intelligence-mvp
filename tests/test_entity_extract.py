@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from app.engineering_models import EngineeringDocumentClass, EntityKind
 from app.evaluation.machine_intelligence.artifacts import binary_files, source_texts
-from app.services.entity_extract import MAX_IDENTIFIER_LENGTH, extract_mentions
+from app.services.entity_extract import (
+    MAX_IDENTIFIER_LENGTH,
+    MAX_PAGE_MENTIONS,
+    _from_pages,
+    extract_mentions,
+)
 
 
 def test_io_list_extracts_signals_with_addresses():
@@ -136,3 +141,15 @@ def test_extraction_is_reproducible():
     )
     assert first == second
     assert any(item.name == "XA:1.1" and item.entity_kind.value == "terminal" for item in first)
+
+
+def test_page_mentions_stop_at_the_member_limit():
+    pages = tuple((index, f"CV01.Signal{index}") for index in range(MAX_PAGE_MENTIONS + 1))
+    mentions = _from_pages(
+        pages,
+        filename="notes.txt",
+        path_hint="notes.txt",
+        document_class=EngineeringDocumentClass.manual,
+        locator_kind="page",
+    )
+    assert len(mentions) == MAX_PAGE_MENTIONS
