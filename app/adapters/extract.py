@@ -11,6 +11,7 @@ import io
 import posixpath
 import re
 import zipfile
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
 from xml.etree import ElementTree
@@ -20,8 +21,6 @@ from app.adapters.zip_unpack import assert_zip_directory_within_limits
 _S_NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 _REL_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"
 _DOC_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
-_PDF_STRING = re.compile(rb"\((?:\\.|[^\\)])*\) Tj")
-
 # Dense-grid caps. A1 references are attacker-controlled; expanding to the
 # declared row/column without a bound can OOM the shared ingestion worker.
 MAX_SHEET_ROWS = 4_096
@@ -50,12 +49,39 @@ def parse_table(content: bytes, filename: str) -> tuple[str, tuple[TableRow, ...
     return "unknown", ()
 
 
+def _iter_pdf_strings(content: bytes) -> Iterator[bytes]:
+    """Yield fixture-style PDF Tj strings in one bounded linear scan."""
+    start: int | None = None
+    latest_open: int | None = None
+    index = 0
+    while index < len(content):
+        value = content[index]
+        if start is None:
+            if value == ord("("):
+                start = latest_open = index
+            index += 1
+            continue
+        if value == ord("\\"):
+            index += 2
+            continue
+        if value == ord("("):
+            latest_open = index
+        elif value == ord(")"):
+            if content[index + 1 : index + 4] == b" Tj":
+                yield content[start + 1 : index]
+                start = latest_open = None
+                index += 4
+                continue
+            start = latest_open if latest_open is not None and latest_open > start else None
+            latest_open = start
+        index += 1
+
+
 def extract_pdf_pages(content: bytes) -> tuple[tuple[int, str], ...]:
     """Page-ordered text from the fixture-style PDF string operators."""
     pages: list[list[str]] = []
     current: list[str] = []
-    for match in _PDF_STRING.finditer(content):
-        raw = match.group(0)[1:-4]
+    for raw in _iter_pdf_strings(content):
         text = (
             raw.replace(b"\\(", b"(")
             .replace(b"\\)", b")")
