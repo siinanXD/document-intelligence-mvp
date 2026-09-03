@@ -31,8 +31,12 @@ MAX_SHEET_CELLS = 65_536
 MAX_PDF_STRINGS = 65_536
 MAX_PDF_PAGES = 4_096
 MAX_PDF_CHARS = 1_048_576
+MAX_TEXT_PAGES = 4_096
+MAX_TEXT_CHARS = 1_048_576
+MAX_XLSX_XML_PART = 256 * 1024
 _MAX_ROW_DIGITS = 5
 _MAX_COLUMN_LETTERS = 3
+_XML_DECLARATION = re.compile(rb"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -130,14 +134,29 @@ def extract_text_pages(content: bytes) -> tuple[tuple[int, str], ...]:
         text = content.decode("utf-8")
     except UnicodeDecodeError:
         return ()
-    parts = re.split(r"\f", text)
     numbered: list[tuple[int, str]] = []
-    for index, part in enumerate(parts, start=1):
+    start = 0
+    char_count = 0
+    for index in range(1, MAX_TEXT_PAGES + 1):
+        separator = text.find("\f", start)
+        if separator < 0:
+            part = text[start:]
+            start = len(text)
+        else:
+            part = text[start:separator]
+            start = separator + 1
+        char_count += len(part)
+        if char_count > MAX_TEXT_CHARS:
+            return ()
         if not part.strip():
+            if start == len(text):
+                break
             continue
         match = re.search(r"sheet=(\d+)/", part)
         page_number = int(match.group(1)) if match else index
         numbered.append((page_number, part))
+        if start == len(text):
+            break
     return tuple(numbered)
 
 
@@ -192,13 +211,13 @@ def _parse_xlsx(content: bytes) -> tuple[str, tuple[TableRow, ...]]:
 
 
 def _workbook_sheet(archive: zipfile.ZipFile, workbook_xml: bytes) -> tuple[str, str]:
-    root = ElementTree.fromstring(workbook_xml)
+    root = _parse_xml(workbook_xml)
     sheet = root.find(f".//{_S_NS}sheet")
     name = sheet.get("name") if sheet is not None else None
     relationship_id = sheet.get(f"{{{_DOC_REL_NS}}}id") if sheet is not None else None
     target = None
     if relationship_id:
-        rels = ElementTree.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+        rels = _parse_xml(archive.read("xl/_rels/workbook.xml.rels"))
         for relationship in rels.findall(f"{_REL_NS}Relationship"):
             if relationship.get("Id") == relationship_id:
                 target = relationship.get("Target")
@@ -212,7 +231,7 @@ def _workbook_sheet(archive: zipfile.ZipFile, workbook_xml: bytes) -> tuple[str,
 
 
 def _shared_strings(sst_xml: bytes) -> list[str]:
-    root = ElementTree.fromstring(sst_xml)
+    root = _parse_xml(sst_xml)
     strings: list[str] = []
     for item in root.findall(f"{_S_NS}si"):
         strings.append("".join(node.text or "" for node in item.iter(f"{_S_NS}t")))
@@ -257,7 +276,7 @@ def _sheet_row_number(raw: str | None, fallback: int) -> int:
 
 
 def _sheet_matrix(sheet_xml: bytes, strings: list[str]) -> list[list[str]]:
-    root = ElementTree.fromstring(sheet_xml)
+    root = _parse_xml(sheet_xml)
     matrix: list[list[str]] = []
     allocated = 0
     for row in root.iter(f"{_S_NS}row"):
@@ -287,6 +306,12 @@ def _sheet_matrix(sheet_xml: bytes, strings: list[str]) -> list[list[str]]:
             else:
                 values[column - 1] = value.text
     return matrix
+
+
+def _parse_xml(content: bytes) -> ElementTree.Element:
+    if len(content) > MAX_XLSX_XML_PART or _XML_DECLARATION.search(content):
+        raise ValueError("xlsx XML part is unsafe")
+    return ElementTree.fromstring(content)
 
 
 def _rows_from_matrix(matrix: list[list[str]], sheet_name: str) -> tuple[TableRow, ...]:

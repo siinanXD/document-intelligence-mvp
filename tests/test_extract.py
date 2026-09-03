@@ -8,9 +8,11 @@ import zipfile
 from app.adapters.base import Artifact
 from app.adapters.extract import (
     MAX_PDF_STRINGS,
+    MAX_TEXT_PAGES,
     MAX_SHEET_COLUMNS,
     MAX_SHEET_ROWS,
     extract_pdf_pages,
+    extract_text_pages,
     parse_table,
 )
 from app.adapters.stubs import TabularAdapter
@@ -210,6 +212,12 @@ def test_pdf_string_scan_caps_accumulated_output():
     assert extract_pdf_pages(payload) == ()
 
 
+def test_text_pages_cap_repeated_form_feeds():
+    content = ("page\f" * (MAX_TEXT_PAGES + 1)).encode()
+    pages = extract_text_pages(content)
+    assert len(pages) <= MAX_TEXT_PAGES
+
+
 def test_delimited_table_rejects_too_many_rows():
     header = "tag,kind,qty,revision,power_kw"
     rows = [header, *[f"CV01-M{index},motor,1,A,1" for index in range(MAX_SHEET_ROWS)]]
@@ -254,6 +262,24 @@ def test_xlsx_negative_shared_string_index_is_empty_parse():
                 '<row r="2"><c r="A2" t="s"><v>-1</v></c></row>'
                 "</sheetData></worksheet>"
             ),
+        }
+    )
+    sheet_name, rows = parse_table(content, "io_list.xlsx")
+    assert sheet_name == "unknown"
+    assert rows == ()
+
+
+def test_xlsx_entity_expansion_is_rejected():
+    entity = (
+        '<?xml version="1.0"?><!DOCTYPE worksheet [<!ENTITY bomb "expanded">]>'
+        f'<worksheet xmlns="{_NS}"><sheetData><row r="1"><c r="A1" '
+        't="inlineStr"><is><t>&bomb;</t></is></c></row></sheetData></worksheet>'
+    )
+    content = _xlsx(
+        {
+            "xl/workbook.xml": _workbook("IO"),
+            "xl/_rels/workbook.xml.rels": _workbook_rels("worksheets/sheet1.xml"),
+            "xl/worksheets/sheet1.xml": entity,
         }
     )
     sheet_name, rows = parse_table(content, "io_list.xlsx")
