@@ -3,7 +3,7 @@
 import pytest
 
 from app.core.settings import get_settings
-from app.evaluation.__main__ import _apply_live_bounds, build_parser
+from app.evaluation.__main__ import _apply_live_bounds, _reranker, build_parser
 from app.evaluation.generation_runner import (
     LIVE_DEFAULT_MAX_CASES,
     LIVE_DEFAULT_MAX_COST_USD,
@@ -12,6 +12,7 @@ from app.evaluation.generation_runner import (
 from app.evaluation.judge import JudgeVerdict, LiveJudge, NullJudge
 from app.providers.generation import GenerationResult
 from app.providers.prompts import GENERATION_EVAL_JUDGE
+from app.providers.registry import ProviderConfigurationError
 from app.services.qa import AskResult
 
 
@@ -20,9 +21,28 @@ def test_scripted_run_does_not_imply_live_bounds():
     _apply_live_bounds(args)
     assert args.llm == "scripted"
     assert args.judge == "none"
+    assert args.reranker == "none"
     assert args.max_cases is None
     assert args.max_cost_usd is None
     assert args.no_compare is False
+
+
+def test_configured_reranker_is_opt_in_and_bounded(monkeypatch):
+    marker = object()
+    monkeypatch.setattr("app.providers.registry.get_reranker", lambda: marker)
+    args = build_parser().parse_args(["--reranker", "configured"])
+
+    _apply_live_bounds(args)
+
+    assert args.max_cases == LIVE_DEFAULT_MAX_CASES
+    assert _reranker(args.reranker) is marker
+
+
+def test_configured_reranker_requires_an_enabled_provider(monkeypatch):
+    monkeypatch.setattr("app.providers.registry.get_reranker", lambda: None)
+
+    with pytest.raises(ProviderConfigurationError, match="RERANKER_PROVIDER"):
+        _reranker("configured")
 
 
 def test_live_llm_caps_cases_and_skips_scripted_baseline_without_prices():

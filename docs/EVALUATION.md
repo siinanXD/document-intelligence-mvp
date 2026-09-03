@@ -51,6 +51,10 @@ Optional live-provider runs (never ordinary CI):
 ```bash
 python -m app.evaluation --embeddings live --no-compare --output evaluation/reports/live-retrieval.json
 
+# Exercise the configured second-stage reranker in retrieval or generation.
+python -m app.evaluation --embeddings live --reranker configured --no-compare \
+  --output evaluation/reports/live-reranked-retrieval.json
+
 # Bounded live generation. Case cap defaults to 8. Dollar cap defaults to
 # $0.50 only when LLM_INPUT_USD_PER_MILLION and LLM_OUTPUT_USD_PER_MILLION
 # are both set (generation + judge usage). Embeddings are bounded by cases.
@@ -92,6 +96,9 @@ independent of any generated answer.
   offline, sensitive to ranking and chunking changes.
 - **scripted** (`evaluation` / `scripted-grounded`) is the default generation
   LLM. No network.
+- **configured reranker** is opt-in with `--reranker configured` and uses
+  `get_reranker()` for both retrieval and generation tracks. The command fails
+  if `RERANKER_PROVIDER` is still `none`; ordinary CI never enables it.
 - **live** uses `get_embedding_provider()` / `get_llm_provider()` from
   settings. Opt-in only. Bounded by `--max-cases` (default 8 when live).
   `--max-cost-usd` applies to generation and judge usage only, and only
