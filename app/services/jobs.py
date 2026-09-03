@@ -120,7 +120,8 @@ async def claim(session: AsyncSession, *, worker_id: str, limit: int = 1) -> lis
         # re-queues a job whose attempts are spent - retrying it forever.
         .execution_options(synchronize_session="fetch")
     )
-    return list(result.scalars().all())
+    claimed = list(result.scalars().all())
+    return sorted(claimed, key=lambda job: (job.available_at, job.created_at, job.id))
 
 
 async def finish(
