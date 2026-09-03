@@ -38,7 +38,7 @@ Skip conditions - do nothing (end the run immediately) when any holds:
 Read first: CLAUDE.md, AGENTS.md, docs/agent-workflow.md,
 docs/AUTOMATIONS.md, .github/copilot-instructions.md and every
 .github/skills/*/SKILL.md file. The skills contain Copilot's project
-invariants; copilot-instructions.md contains review style and supplementary
+invariants; .github/copilot-instructions.md contains review style and supplementary
 inspection guidance. Together they are the review contract.
 
 For EVERY unresolved finding (Codex, Copilot or human):
