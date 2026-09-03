@@ -203,7 +203,7 @@ def test_registry_switches_to_huggingface_by_configuration_alone(monkeypatch):
     """The provider switch is environment variables only - no code change."""
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setenv("EMBEDDING_PROVIDER", "huggingface")
-    monkeypatch.setenv("EMBEDDING_MODEL", "BAAI/bge-m3")
+    monkeypatch.setenv("HUGGINGFACE_EMBEDDING_MODEL", "BAAI/bge-m3")
     monkeypatch.setenv("EMBEDDING_VERSION", "v2")
     monkeypatch.setenv("HUGGINGFACE_EMBEDDINGS_BASE_URL", "http://embeddings.internal:8080")
     monkeypatch.setenv("HUGGINGFACE_EMBEDDING_DIMENSIONS", "1024")
@@ -226,10 +226,21 @@ def test_registry_refuses_huggingface_without_a_base_url(monkeypatch):
         get_embedding_provider()
 
 
+def test_registry_refuses_huggingface_without_an_explicit_model(monkeypatch):
+    monkeypatch.setenv("EMBEDDING_PROVIDER", "huggingface")
+    monkeypatch.setenv("HUGGINGFACE_EMBEDDINGS_BASE_URL", "http://embeddings.internal:8080")
+    monkeypatch.delenv("HUGGINGFACE_EMBEDDING_MODEL", raising=False)
+    monkeypatch.setenv("HUGGINGFACE_EMBEDDING_DIMENSIONS", "1024")
+
+    with pytest.raises(ProviderConfigurationError, match="HUGGINGFACE_EMBEDDING_MODEL"):
+        get_embedding_provider()
+
+
 def test_registry_refuses_huggingface_without_declared_dimensions(monkeypatch):
     """Guessing the width would corrupt the collection; it must be declared."""
     monkeypatch.setenv("EMBEDDING_PROVIDER", "huggingface")
     monkeypatch.setenv("HUGGINGFACE_EMBEDDINGS_BASE_URL", "http://embeddings.internal:8080")
+    monkeypatch.setenv("HUGGINGFACE_EMBEDDING_MODEL", "BAAI/bge-m3")
     monkeypatch.delenv("HUGGINGFACE_EMBEDDING_DIMENSIONS", raising=False)
 
     with pytest.raises(ProviderConfigurationError, match="HUGGINGFACE_EMBEDDING_DIMENSIONS"):

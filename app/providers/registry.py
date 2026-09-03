@@ -43,6 +43,8 @@ def get_embedding_provider() -> EmbeddingProvider:
     if settings.embedding_provider == "huggingface":
         if not settings.huggingface_embeddings_base_url:
             raise ProviderConfigurationError("HUGGINGFACE_EMBEDDINGS_BASE_URL is not configured")
+        if not settings.huggingface_embedding_model:
+            raise ProviderConfigurationError("HUGGINGFACE_EMBEDDING_MODEL is not configured")
         if settings.huggingface_embedding_dimensions is None:
             raise ProviderConfigurationError("HUGGINGFACE_EMBEDDING_DIMENSIONS is not configured")
         return HuggingFaceEmbeddingProvider(
@@ -51,7 +53,7 @@ def get_embedding_provider() -> EmbeddingProvider:
                 api_key=settings.huggingface_api_key,
                 timeout_seconds=settings.huggingface_timeout_seconds,
             ),
-            model=settings.embedding_model,
+            model=settings.huggingface_embedding_model,
             dimensions=settings.huggingface_embedding_dimensions,
             version=settings.embedding_version,
             batch_size=settings.huggingface_embedding_batch_size,

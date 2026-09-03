@@ -18,7 +18,7 @@ from app.evaluation.generation_metrics import (
 from app.evaluation.ingest import resolve_judgment
 from app.evaluation.judge import JudgeScore, NullJudge
 from app.models import Chunk, Document
-from app.providers.base import EmbeddingProvider, LLMProvider
+from app.providers.base import EmbeddingProvider, LLMProvider, RerankerProvider
 from app.services.qa import ask
 from app.services.vector_store import VectorStoreService
 
@@ -68,6 +68,7 @@ async def run_generation_dataset(
     vector_store: VectorStoreService,
     *,
     judge: Any | None = None,
+    reranker: RerankerProvider | None = None,
     max_cases: int | None = None,
     max_cost_usd: float | None = None,
     require_generation_cost: bool = False,
@@ -92,6 +93,7 @@ async def run_generation_dataset(
             llm=llm,
             vector_store=vector_store,
             judge=judge,
+            reranker=reranker,
             limit=limit,
         )
         scores.append(score)
@@ -121,6 +123,7 @@ async def _run_generation_case(
     llm: LLMProvider,
     vector_store: VectorStoreService,
     judge: Any,
+    reranker: RerankerProvider | None,
     limit: int,
 ) -> GenerationCaseScore:
     tenant_docs = documents[case.tenant]
@@ -146,6 +149,7 @@ async def _run_generation_case(
         tenant_id=tenant_id,
         question=case.query,
         limit=limit,
+        reranker=reranker,
     )
 
     retrieved_ids = {
