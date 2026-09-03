@@ -96,7 +96,7 @@ class HuggingFaceEmbeddingProvider(EmbeddingProvider):
                 raise ProviderResponseError(f"{self._model} returned a non-list embed response")
             if len(payload) != len(batch):
                 raise ProviderResponseError(
-                    f"{self._model} returned {len(payload)} vectors for a batch of "
+                    f"{self._model} returned {len(payload)} vector(s) for a batch of "
                     f"{len(batch)} inputs"
                 )
             vectors.extend(payload)
