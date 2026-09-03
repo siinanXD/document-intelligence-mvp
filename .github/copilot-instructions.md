@@ -2,7 +2,11 @@
 
 Review pull requests for concrete correctness, security, privacy and regression risks. Prefer actionable findings over style opinions.
 
-The project-specific review invariants live in the five authoritative skills under `.github/skills/`. Read the applicable `SKILL.md` files before reviewing and cite the skill name when reporting an invariant violation. Do not recreate those rules here.
+The project-specific review invariants live in the five authoritative skills under `.github/skills/`. Read all five `SKILL.md` files before reviewing and cite the skill name when reporting an invariant violation. Do not recreate those rules here.
+
+## Data source-of-truth invariant
+
+PostgreSQL is the source of truth for document text and provenance. Qdrant payloads contain identifiers only. Cross-tenant citation leakage and foreign source IDs are release-blocking defects.
 
 ## What to inspect carefully
 
