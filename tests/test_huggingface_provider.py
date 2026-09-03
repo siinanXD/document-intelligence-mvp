@@ -114,7 +114,7 @@ async def test_embed_rejects_a_vector_count_mismatch():
     client = _FakeHTTPClient(responses=[_FakeResponse([[0.0, 0.0, 0.0, 0.0]])])
     provider = _provider(client)
 
-    with pytest.raises(ProviderResponseError, match="returned 1 vectors for 2 inputs"):
+    with pytest.raises(ProviderResponseError, match="returned 1 vector for a batch of 2 inputs"):
         await provider.embed(["alpha", "beta"])
 
 
