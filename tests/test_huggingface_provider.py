@@ -118,6 +118,27 @@ async def test_embed_rejects_a_vector_count_mismatch():
         await provider.embed(["alpha", "beta"])
 
 
+async def test_embed_rejects_a_batch_count_mismatch_even_when_the_total_would_match():
+    client = _FakeHTTPClient(
+        responses=[
+            _FakeResponse([[0.0, 0.0, 0.0, 0.0]]),
+            _FakeResponse(
+                [
+                    [0.0, 0.0, 0.0, 0.0],
+                    [1.0, 0.0, 0.0, 0.0],
+                    [2.0, 0.0, 0.0, 0.0],
+                ]
+            ),
+        ]
+    )
+    provider = _provider(client, batch_size=2)
+
+    with pytest.raises(ProviderResponseError, match="1 vectors for a batch of 2 inputs"):
+        await provider.embed(["alpha", "beta", "gamma", "delta"])
+
+    assert len(client.calls) == 1
+
+
 async def test_embed_rejects_a_non_list_response():
     client = _FakeHTTPClient(responses=[_FakeResponse({"error": "model overloaded"})])
 
