@@ -35,8 +35,11 @@ Skip conditions - do nothing (end the run immediately) when any holds:
 - Three automatic repair rounds have already been attempted for this same
   finding on this PR.
 
-Read first: CLAUDE.md, AGENTS.md, docs/agent-workflow.md, docs/AUTOMATIONS.md
-and .github/copilot-instructions.md (the review contract).
+Read first: CLAUDE.md, AGENTS.md, docs/agent-workflow.md,
+docs/AUTOMATIONS.md, .github/copilot-instructions.md and every
+.github/skills/*/SKILL.md file. The skills contain Copilot's project
+invariants; copilot-instructions.md contains review style and supplementary
+inspection guidance. Together they are the review contract.
 
 For EVERY unresolved finding (Codex, Copilot or human):
 1. Verify it against the CURRENT PR head and the complete surrounding code.
