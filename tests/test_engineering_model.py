@@ -3,6 +3,7 @@
 import uuid
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.engineering_models import (
@@ -96,6 +97,59 @@ async def test_package_document_tenant_must_match_the_document(
     )
     with pytest.raises(IntegrityError):
         await db_session.flush()
+
+
+async def test_clear_package_identities_drops_orphaned_evidence(db_session, tenant, make_document):
+    package, document, evidence = await _package_with_doc(db_session, tenant, make_document)
+    kept = await engineering.record_evidence(
+        db_session,
+        tenant_id=tenant.id,
+        locator_kind=EvidenceLocatorKind.sheet_cell,
+        document_id=document.id,
+        sheet_name="I/O",
+        cell_range="C4",
+    )
+    derived = await engineering.create_canonical_entity(
+        db_session,
+        tenant_id=tenant.id,
+        package_id=package.id,
+        entity_kind=EntityKind.component,
+        canonical_name="CV01-M1",
+        evidence_ids=[evidence.id],
+        method="deterministic_identity",
+        method_version="sin-91.1",
+    )
+    manual = await engineering.create_canonical_entity(
+        db_session,
+        tenant_id=tenant.id,
+        package_id=package.id,
+        entity_kind=EntityKind.component,
+        canonical_name="CL12-CPU",
+        evidence_ids=[kept.id],
+    )
+    await engineering.clear_package_identities(
+        db_session,
+        tenant_id=tenant.id,
+        package_id=package.id,
+        methods=("deterministic_identity", "deterministic_identifiers"),
+    )
+    remaining = (
+        (
+            await db_session.execute(
+                select(EvidenceReference).where(EvidenceReference.tenant_id == tenant.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert {row.id for row in remaining} == {kept.id}
+    assert (
+        await engineering.get_entity(db_session, tenant_id=tenant.id, entity_id=derived.id) is None
+    )
+    assert (
+        await engineering.get_entity(db_session, tenant_id=tenant.id, entity_id=manual.id)
+        is not None
+    )
 
 
 async def test_canonical_entity_requires_evidence(db_session, tenant, make_document):
