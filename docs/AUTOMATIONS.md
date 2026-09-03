@@ -81,8 +81,12 @@ involves any of the following:
 For gated changes the loop still implements (when scope is clear), tests,
 reviews and fully prepares the PR - then adds `owner-approval-required`,
 requests one concise owner decision, and stops before merge. The
-`merge-gate` workflow fails while the label is present, so GitHub auto-merge
-cannot complete even if it was enabled earlier.
+`merge-gate` workflow fails while `owner-approval-required` is present and
+`owner-approved` is absent, so GitHub auto-merge cannot complete even if it
+was enabled earlier. The owner releases the gate by adding `owner-approved`
+alongside `owner-approval-required` - the required label stays in place for
+the audit record, and `owner-approved` is what opens the gate. Removing
+`owner-approval-required` is not the release mechanism.
 
 ## Auto-merge eligibility checklist
 
@@ -99,8 +103,8 @@ Automation 4 enables squash auto-merge only after verifying all of:
 8. No secret, credential or filled `.env` file is present in the diff.
 9. No paid provider call was added to tests or CI.
 10. No test was skipped, removed or weakened.
-11. The risk policy above allows automatic merge (no human-gate category, no
-    `owner-approval-required` label).
+11. The risk policy above allows automatic merge (no human-gate category, or
+    `owner-approval-required` paired with `owner-approved`).
 
 ## Post-merge continuation and red-main recovery
 
@@ -196,16 +200,20 @@ immediately and must not be enabled without them. Then configure:
 10. Create the label `owner-approval-required` (suggested color `#B60205`,
     description: "High-risk change - one explicit owner decision required
     before merge").
+11. Create the label `owner-approved` (description: "Owner decided: opens
+    the gate. Only Sinan sets this."). The owner adds this label alongside
+    `owner-approval-required` to release the `merge-gate` check;
+    `owner-approval-required` stays on the PR as the audit record.
 
 **Cursor dashboard** ([cursor.com/automations](https://cursor.com/automations)):
 
-11. Create the four automations exactly as defined in `.cursor/automations/`
+12. Create the four automations exactly as defined in `.cursor/automations/`
     (trigger, repository, tools, prompt per file) and activate them.
-12. Ensure the Cursor Linear integration is connected to the workspace that
+13. Ensure the Cursor Linear integration is connected to the workspace that
     contains the Document Intelligence MVP and Machine Intelligence projects,
     and that the Cursor GitHub connection has write access to
     `siinanXD/document-intelligence-mvp`.
-13. If agents should update Linear directly (statuses, comments), authenticate
+14. If agents should update Linear directly (statuses, comments), authenticate
     the Linear MCP integration for Cloud Agents in the Cursor dashboard.
 
 ## Validation runbook

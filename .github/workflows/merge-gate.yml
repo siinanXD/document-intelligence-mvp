@@ -7,8 +7,10 @@
 #
 # When the owner-approval-required label is present the check fails, so
 # GitHub auto-merge cannot complete while a high-risk change awaits the
-# owner's decision. Configure `merge-gate` as a required status check on
-# main (see docs/AUTOMATIONS.md, owner activation checklist).
+# owner's decision. The owner releases the gate by adding owner-approved
+# alongside owner-approval-required (the required label stays for the audit
+# record); the check then passes. Configure `merge-gate` as a required status
+# check on main (see docs/AUTOMATIONS.md, owner activation checklist).
 name: Merge gate
 
 on:
@@ -31,6 +33,10 @@ jobs:
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: |
           if [[ ",${LABELS}," == *",owner-approval-required,"* ]]; then
+            if [[ ",${LABELS}," == *",owner-approved,"* ]]; then
+              echo "owner-approved is set alongside owner-approval-required - owner released the gate, merge gate open"
+              exit 0
+            fi
             echo "::error::owner-approval-required is set - this pull request needs one explicit repository-owner decision before it can merge (docs/AUTOMATIONS.md, risk policy)"
             exit 1
           fi
