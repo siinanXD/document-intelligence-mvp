@@ -27,6 +27,7 @@ from app.services import engineering
 from app.services.entity_extract import (
     EXTRACTOR_METHOD,
     EXTRACTOR_VERSION,
+    MAX_IDENTIFIER_LENGTH,
     ExtractedMention,
     extract_mentions,
 )
@@ -87,12 +88,24 @@ async def resolve_package_identities(
     class_by_path = {
         row.relative_path: row.document_class for row in assignments if row.relative_path
     }
-    machine_id = next((row.machine_id for row in assignments if row.machine_id), None)
-    mentions = await _mentions_for_members(
+    machine_by_path = {
+        row.relative_path: row.machine_id for row in assignments if row.relative_path
+    }
+    mentions, incomplete = await _mentions_for_members(
         storage,
         payload=payload,
         class_by_path=class_by_path,
     )
+    if incomplete:
+        logger.info(
+            "package identities incomplete",
+            extra={
+                "tenant_id": str(document.tenant_id),
+                "document_id": str(document.id),
+                "package_id": str(package.id),
+            },
+        )
+        return []
     if not mentions:
         logger.info(
             "package identities empty",
@@ -115,7 +128,7 @@ async def resolve_package_identities(
         tenant_id=document.tenant_id,
         package_id=package.id,
         document_id=document.id,
-        machine_id=machine_id,
+        machine_by_path=machine_by_path,
         mentions=mentions,
     )
     logger.info(
@@ -135,7 +148,7 @@ async def _mentions_for_members(
     *,
     payload: dict[str, Any],
     class_by_path: dict[str | None, EngineeringDocumentClass],
-) -> list[ExtractedMention]:
+) -> tuple[list[ExtractedMention], bool]:
     mentions: list[ExtractedMention] = []
     members = [
         item for item in payload.get("observations") or [] if item.get("kind") == "package_member"
@@ -147,11 +160,11 @@ async def _mentions_for_members(
             continue
         key = _member_key(payload, path_hint)
         if not key:
-            continue
+            return mentions, True
         try:
             content = await storage.get(key)
         except ObjectNotFoundError:
-            continue
+            return mentions, True
         filename = path_hint.rsplit("/", 1)[-1]
         mentions.extend(
             extract_mentions(
@@ -169,7 +182,7 @@ async def _mentions_for_members(
             str(item.evidence.get("cell_range") or item.evidence.get("page_number") or 0),
         )
     )
-    return mentions
+    return mentions, False
 
 
 async def _persist_resolution(
@@ -178,11 +191,13 @@ async def _persist_resolution(
     tenant_id,
     package_id,
     document_id,
-    machine_id,
+    machine_by_path: dict[str, Any],
     mentions: list[ExtractedMention],
 ) -> list:
     groups: dict[tuple[EntityKind, str], list[ExtractedMention]] = defaultdict(list)
     for mention in mentions:
+        if not mention.name or len(mention.name) > MAX_IDENTIFIER_LENGTH:
+            continue
         groups[(mention.entity_kind, mention.name)].append(mention)
 
     candidates_by_key: dict[tuple[EntityKind, str], list] = {}
@@ -218,7 +233,7 @@ async def _persist_resolution(
             session,
             tenant_id=tenant_id,
             package_id=package_id,
-            machine_id=machine_id,
+            machine_by_path=machine_by_path,
             stored=stored,
         )
         entities_by_key[key] = entity
@@ -238,12 +253,13 @@ async def _promote_group(
     *,
     tenant_id,
     package_id,
-    machine_id,
+    machine_by_path: dict[str, Any],
     stored: list,
 ) -> Any:
     current = [item for item in stored if item[0].revision_role != "superseded"]
     primary_pool = current or stored
     primary_mention = max(primary_pool, key=_mention_rank)[0]
+    machine_id = machine_by_path.get(primary_mention.source_path)
     aliases: list[str] = []
     for mention, _candidate, _evidence in stored:
         for alias in mention.aliases:

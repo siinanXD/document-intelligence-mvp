@@ -22,7 +22,7 @@ from app.services.identity_resolution import (
     assembly_code_for,
     resolve_package_identities,
 )
-from app.services.package_assignment import _load_payload, current_assignments
+from app.services.package_assignment import _load_payload, current_assignments, override_assignment
 from app.services.processing import process_job
 from tests.test_package_intake import _queued_zip
 from tests.test_processing import _FakeParser
@@ -178,6 +178,62 @@ async def test_missing_member_blobs_do_not_erase_identities(
     second = await engineering.list_entities(db_session, tenant_id=tenant.id, package_id=package.id)
     assert {row.id for row in second} == {row.id for row in first}
     assert {row.canonical_name for row in second} == {row.canonical_name for row in first}
+
+
+async def test_partial_missing_member_blob_does_not_erase_identities(
+    db_session, storage, tenant, make_document
+):
+    document, package = await _ingest_package(
+        db_session, storage, tenant, make_document, binary_files()
+    )
+    first = await engineering.list_entities(db_session, tenant_id=tenant.id, package_id=package.id)
+    assert first
+    payload = await _load_payload(storage, document)
+    keys = [key for key in (payload.get("member_storage_keys") or []) if key]
+    assert len(keys) > 1
+    await storage.delete(keys[0])
+    await resolve_package_identities(db_session, storage, document=document)
+    second = await engineering.list_entities(db_session, tenant_id=tenant.id, package_id=package.id)
+    assert {row.id for row in second} == {row.id for row in first}
+    assert {row.canonical_name for row in second} == {row.canonical_name for row in first}
+
+
+async def test_mentions_resolve_against_their_assigned_machine(
+    db_session, storage, tenant, make_document
+):
+    files = {
+        "bom_cv01.csv": b"tag,kind,qty,revision,power_kw\nCV01-M1,motor,1,A,5.5,CL-12\n",
+        "bom_cv08.csv": b"tag,kind,qty,revision,power_kw\nCV08-M1,motor,1,A,4.0,CL-12\n",
+    }
+    document, package = await _ingest_package(db_session, storage, tenant, make_document, files)
+    machines = await engineering.list_machines(
+        db_session, tenant_id=tenant.id, package_id=package.id
+    )
+    assert machines
+    first_machine = machines[0]
+    second_machine = await engineering.create_machine(
+        db_session,
+        tenant_id=tenant.id,
+        package_id=package.id,
+        name="other-line",
+        code="other-line",
+    )
+    assignments = await current_assignments(db_session, tenant_id=tenant.id, package_id=package.id)
+    cv08 = next(row for row in assignments if row.relative_path == "bom_cv08.csv")
+    await override_assignment(
+        db_session,
+        tenant_id=tenant.id,
+        assignment_id=cv08.id,
+        actor_id="reviewer-1",
+        machine_id=second_machine.id,
+    )
+    await resolve_package_identities(db_session, storage, document=document)
+    entities = await engineering.list_entities(
+        db_session, tenant_id=tenant.id, package_id=package.id
+    )
+    by_name = {row.canonical_name: row for row in entities}
+    assert by_name["CV01-M1"].machine_id == first_machine.id
+    assert by_name["CV08-M1"].machine_id == second_machine.id
 
 
 async def test_entities_are_invisible_to_another_tenant(
