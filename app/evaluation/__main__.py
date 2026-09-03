@@ -3,8 +3,8 @@
 Default run uses hashing embeddings and the retrieval-v1 golden corpus.
 Generation evaluation is `--track generation` with the scripted LLM.
 
-Live provider runs (`--embeddings live`, `--llm live`, `--judge live`) are
-opt-in, bounded, and never part of ordinary CI.
+Live provider runs (`--embeddings live`, `--reranker configured`, `--llm live`,
+`--judge live`) are opt-in, bounded, and never part of ordinary CI.
 
 The run uses a single database transaction and rolls it back: evaluation
 tenants and documents do not persist. Qdrant is in-memory.
@@ -71,6 +71,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="hashing is the CI default. live calls the configured provider and is opt-in.",
     )
     parser.add_argument(
+        "--reranker",
+        choices=("none", "configured"),
+        default="none",
+        help="Use the configured optional reranker. Off by default and never used in CI.",
+    )
+    parser.add_argument(
         "--llm",
         choices=("scripted", "live"),
         default="scripted",
@@ -120,7 +126,12 @@ def _database_url(explicit: str | None) -> str:
 
 
 def _is_live(args: argparse.Namespace) -> bool:
-    return args.embeddings == "live" or args.llm == "live" or args.judge == "live"
+    return (
+        args.embeddings == "live"
+        or args.reranker == "configured"
+        or args.llm == "live"
+        or args.judge == "live"
+    )
 
 
 def _live_generation(args: argparse.Namespace) -> bool:
@@ -163,6 +174,20 @@ async def _async_main(args: argparse.Namespace) -> int:
     return await _run_retrieval(args)
 
 
+def _reranker(kind: str):
+    if kind == "none":
+        return None
+
+    from app.providers.registry import ProviderConfigurationError, get_reranker
+
+    reranker = get_reranker()
+    if reranker is None:
+        raise ProviderConfigurationError(
+            "--reranker configured requires RERANKER_PROVIDER to be enabled"
+        )
+    return reranker
+
+
 def _embeddings(kind: str):
     if kind == "live":
         from app.providers.registry import get_embedding_provider
@@ -175,6 +200,7 @@ async def _run_retrieval(args: argparse.Namespace) -> int:
     dataset_name = args.dataset or "retrieval-v1"
     dataset = load_dataset(dataset_name)
     embeddings = _embeddings(args.embeddings)
+    reranker = _reranker(args.reranker)
     output = args.output or DEFAULT_RETRIEVAL_OUTPUT
     baseline = args.baseline or DEFAULT_RETRIEVAL_BASELINE
 
@@ -204,6 +230,7 @@ async def _run_retrieval(args: argparse.Namespace) -> int:
                         embeddings,
                         vector_store,
                         mode=args.mode,
+                        reranker=reranker,
                     )
             finally:
                 await session.close()
@@ -230,6 +257,7 @@ async def _run_generation(args: argparse.Namespace) -> int:
     dataset_name = args.dataset or "generation-v1"
     dataset = load_generation_dataset(dataset_name)
     embeddings = _embeddings(args.embeddings)
+    reranker = _reranker(args.reranker)
     output = args.output or DEFAULT_GENERATION_OUTPUT
     baseline = args.baseline or DEFAULT_GENERATION_BASELINE
     if args.llm == "live":
@@ -275,6 +303,7 @@ async def _run_generation(args: argparse.Namespace) -> int:
                         llm,
                         vector_store,
                         judge=judge,
+                        reranker=reranker,
                         max_cases=args.max_cases,
                         max_cost_usd=args.max_cost_usd if _live_generation(args) else None,
                         require_generation_cost=args.llm == "live"
