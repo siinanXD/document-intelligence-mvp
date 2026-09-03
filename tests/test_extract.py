@@ -6,7 +6,7 @@ import io
 import zipfile
 
 from app.adapters.base import Artifact
-from app.adapters.extract import MAX_SHEET_COLUMNS, MAX_SHEET_ROWS, parse_table
+from app.adapters.extract import MAX_SHEET_COLUMNS, MAX_SHEET_ROWS, extract_pdf_pages, parse_table
 from app.adapters.stubs import TabularAdapter
 from app.adapters.zip_unpack import MAX_COMPRESSION_RATIO
 from app.evaluation.machine_intelligence.artifacts import binary_files
@@ -192,3 +192,8 @@ def test_tabular_observations_omit_cell_values():
     assert row_payloads
     assert all("cells" not in payload for payload in row_payloads)
     assert all("row_number" in payload for payload in row_payloads)
+
+
+def test_pdf_string_scan_handles_many_unmatched_openers():
+    malicious = b"(" * 20_000
+    assert extract_pdf_pages(malicious) == ()
