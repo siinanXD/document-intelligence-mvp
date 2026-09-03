@@ -41,6 +41,22 @@ The four Cursor Automations are created at
 in `.cursor/automations/`. The definitions are version-controlled here so that
 prompt changes go through review like any other change.
 
+## Review contract
+
+The reviewers have separate responsibilities so one defect does not create
+several competing repair rounds:
+
+| Reviewer | Authoritative scope |
+| --- | --- |
+| Copilot | Project invariants in the five `.github/skills/*/SKILL.md` files; findings cite the applicable skill |
+| Codex | Independent general correctness and regression review |
+| Cursor Security Agent | Security-specific review |
+| Cursor repair stage | Validate every finding on the current head, deduplicate it, and apply only confirmed fixes |
+
+`.github/copilot-instructions.md` contains review style and cross-cutting
+inspection guidance only. It must not duplicate the invariant rules stored in
+the skills. Automation 3 reads both sources as one review contract.
+
 ## Risk policy: mandatory human gates
 
 A pull request must NOT be auto-merged, and must instead receive the
