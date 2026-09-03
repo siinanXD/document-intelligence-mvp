@@ -12,7 +12,7 @@ from app.evaluation.ingest import resolve_judgment
 from app.evaluation.metrics import CaseScore, score_case
 from app.evaluation.report import aggregate_scores, attach_categories
 from app.models import Document
-from app.providers.base import EmbeddingProvider
+from app.providers.base import EmbeddingProvider, RerankerProvider
 from app.services import lexical, retrieval
 from app.services.vector_store import VectorStoreService
 
@@ -34,6 +34,7 @@ async def run_dataset(
     vector_store: VectorStoreService,
     *,
     mode: str = "all",
+    reranker: RerankerProvider | None = None,
 ) -> dict[str, ModeResult]:
     results: dict[str, ModeResult] = {}
     for retrieval_mode in ("semantic", "lexical"):
@@ -50,6 +51,7 @@ async def run_dataset(
                     documents=documents,
                     embeddings=embeddings,
                     vector_store=vector_store,
+                    reranker=reranker,
                 )
             )
             categories[case.id] = case.category
@@ -67,6 +69,7 @@ async def _run_case(
     documents: dict[str, dict[str, Document]],
     embeddings: EmbeddingProvider,
     vector_store: VectorStoreService,
+    reranker: RerankerProvider | None,
 ) -> CaseScore:
     tenant_docs = documents[case.tenant]
     tenant_id = next(iter(tenant_docs.values())).tenant_id
@@ -97,6 +100,7 @@ async def _run_case(
             tenant_id=tenant_id,
             query=case.query,
             limit=EVAL_LIMIT,
+            reranker=reranker,
         )
         retrieved = [hit.source_id for hit in hits]
         hit_ids = [hit.document_id for hit in hits]
