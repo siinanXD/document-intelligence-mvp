@@ -26,6 +26,11 @@ _DOC_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationshi
 MAX_SHEET_ROWS = 4_096
 MAX_SHEET_COLUMNS = 64
 MAX_SHEET_CELLS = 65_536
+# Fixture-style PDF scan is linear, but retaining every Tj string can still
+# amplify a valid-size member into hundreds of megabytes of Python objects.
+MAX_PDF_STRINGS = 65_536
+MAX_PDF_PAGES = 4_096
+MAX_PDF_CHARS = 1_048_576
 _MAX_ROW_DIGITS = 5
 _MAX_COLUMN_LETTERS = 3
 
@@ -81,20 +86,35 @@ def extract_pdf_pages(content: bytes) -> tuple[tuple[int, str], ...]:
     """Page-ordered text from the fixture-style PDF string operators."""
     pages: list[list[str]] = []
     current: list[str] = []
-    for raw in _iter_pdf_strings(content):
-        text = (
-            raw.replace(b"\\(", b"(")
-            .replace(b"\\)", b")")
-            .replace(b"\\\\", b"\\")
-            .decode("latin-1")
-        )
-        if text.startswith("TITLE BLOCK") and current:
+    string_count = 0
+    char_count = 0
+    try:
+        for raw in _iter_pdf_strings(content):
+            string_count += 1
+            if string_count > MAX_PDF_STRINGS:
+                raise ValueError("pdf string count exceeds limit")
+            text = (
+                raw.replace(b"\\(", b"(")
+                .replace(b"\\)", b")")
+                .replace(b"\\\\", b"\\")
+                .decode("latin-1")
+            )
+            char_count += len(text)
+            if char_count > MAX_PDF_CHARS:
+                raise ValueError("pdf text exceeds limit")
+            if text.startswith("TITLE BLOCK") and current:
+                pages.append(current)
+                current = [text]
+                if len(pages) + 1 > MAX_PDF_PAGES:
+                    raise ValueError("pdf page count exceeds limit")
+            else:
+                current.append(text)
+        if current:
             pages.append(current)
-            current = [text]
-        else:
-            current.append(text)
-    if current:
-        pages.append(current)
+        if len(pages) > MAX_PDF_PAGES:
+            raise ValueError("pdf page count exceeds limit")
+    except (ValueError, MemoryError):
+        return ()
     numbered: list[tuple[int, str]] = []
     for index, lines in enumerate(pages, start=1):
         blob = "\n".join(lines)
@@ -133,8 +153,24 @@ def _parse_delimited(
         text = content.decode("utf-8")
     except UnicodeDecodeError:
         return sheet_name, ()
-    reader = csv.reader(io.StringIO(text), delimiter=delimiter)
-    rows = [[cell.strip() for cell in row] for row in reader if any(cell.strip() for cell in row)]
+    try:
+        reader = csv.reader(io.StringIO(text), delimiter=delimiter)
+        rows: list[list[str]] = []
+        allocated = 0
+        for raw in reader:
+            if not any(cell.strip() for cell in raw):
+                continue
+            if len(rows) >= MAX_SHEET_ROWS:
+                raise ValueError("sheet row exceeds limit")
+            if len(raw) > MAX_SHEET_COLUMNS:
+                raise ValueError("sheet column exceeds limit")
+            extra = len(raw)
+            if allocated + extra > MAX_SHEET_CELLS:
+                raise ValueError("sheet cell count exceeds limit")
+            allocated += extra
+            rows.append([cell.strip() for cell in raw])
+    except (ValueError, MemoryError, csv.Error):
+        return sheet_name, ()
     return sheet_name, _rows_from_matrix(rows, sheet_name)
 
 
@@ -181,6 +217,16 @@ def _shared_strings(sst_xml: bytes) -> list[str]:
     for item in root.findall(f"{_S_NS}si"):
         strings.append("".join(node.text or "" for node in item.iter(f"{_S_NS}t")))
     return strings
+
+
+def _shared_string_at(strings: list[str], raw: str) -> str:
+    try:
+        index = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("shared string index is invalid") from exc
+    if index < 0 or index >= len(strings):
+        raise ValueError("shared string index is invalid")
+    return strings[index]
 
 
 def _a1_column(reference: str) -> int:
@@ -237,7 +283,7 @@ def _sheet_matrix(sheet_xml: bytes, strings: list[str]) -> list[list[str]]:
             elif value is None or value.text is None:
                 values[column - 1] = ""
             elif cell.get("t") == "s":
-                values[column - 1] = strings[int(value.text)]
+                values[column - 1] = _shared_string_at(strings, value.text)
             else:
                 values[column - 1] = value.text
     return matrix

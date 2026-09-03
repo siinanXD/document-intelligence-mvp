@@ -6,7 +6,13 @@ import io
 import zipfile
 
 from app.adapters.base import Artifact
-from app.adapters.extract import MAX_SHEET_COLUMNS, MAX_SHEET_ROWS, extract_pdf_pages, parse_table
+from app.adapters.extract import (
+    MAX_PDF_STRINGS,
+    MAX_SHEET_COLUMNS,
+    MAX_SHEET_ROWS,
+    extract_pdf_pages,
+    parse_table,
+)
 from app.adapters.stubs import TabularAdapter
 from app.adapters.zip_unpack import MAX_COMPRESSION_RATIO
 from app.evaluation.machine_intelligence.artifacts import binary_files
@@ -197,3 +203,59 @@ def test_tabular_observations_omit_cell_values():
 def test_pdf_string_scan_handles_many_unmatched_openers():
     malicious = b"(" * 20_000
     assert extract_pdf_pages(malicious) == ()
+
+
+def test_pdf_string_scan_caps_accumulated_output():
+    payload = b"".join(b"(TITLE BLOCK) Tj" for _ in range(MAX_PDF_STRINGS + 1))
+    assert extract_pdf_pages(payload) == ()
+
+
+def test_delimited_table_rejects_too_many_rows():
+    header = "tag,kind,qty,revision,power_kw"
+    rows = [header, *[f"CV01-M{index},motor,1,A,1" for index in range(MAX_SHEET_ROWS)]]
+    sheet_name, parsed = parse_table("\n".join(rows).encode(), "bom.csv")
+    assert sheet_name == "bom"
+    assert parsed == ()
+
+
+def test_xlsx_out_of_range_shared_string_is_empty_parse():
+    content = _xlsx(
+        {
+            "xl/workbook.xml": _workbook("IO"),
+            "xl/_rels/workbook.xml.rels": _workbook_rels("worksheets/sheet1.xml"),
+            "xl/sharedStrings.xml": (
+                f'<?xml version="1.0"?><sst xmlns="{_NS}"><si><t>name</t></si></sst>'
+            ),
+            "xl/worksheets/sheet1.xml": (
+                f'<?xml version="1.0"?><worksheet xmlns="{_NS}"><sheetData>'
+                '<row r="1"><c r="A1" t="s"><v>0</v></c></row>'
+                '<row r="2"><c r="A2" t="s"><v>99</v></c></row>'
+                "</sheetData></worksheet>"
+            ),
+        }
+    )
+    sheet_name, rows = parse_table(content, "io_list.xlsx")
+    assert sheet_name == "unknown"
+    assert rows == ()
+
+
+def test_xlsx_negative_shared_string_index_is_empty_parse():
+    content = _xlsx(
+        {
+            "xl/workbook.xml": _workbook("IO"),
+            "xl/_rels/workbook.xml.rels": _workbook_rels("worksheets/sheet1.xml"),
+            "xl/sharedStrings.xml": (
+                f'<?xml version="1.0"?><sst xmlns="{_NS}">'
+                "<si><t>name</t></si><si><t>other</t></si></sst>"
+            ),
+            "xl/worksheets/sheet1.xml": (
+                f'<?xml version="1.0"?><worksheet xmlns="{_NS}"><sheetData>'
+                '<row r="1"><c r="A1" t="s"><v>0</v></c></row>'
+                '<row r="2"><c r="A2" t="s"><v>-1</v></c></row>'
+                "</sheetData></worksheet>"
+            ),
+        }
+    )
+    sheet_name, rows = parse_table(content, "io_list.xlsx")
+    assert sheet_name == "unknown"
+    assert rows == ()

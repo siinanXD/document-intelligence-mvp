@@ -7,6 +7,7 @@ used: absent identifiers stay absent.
 from __future__ import annotations
 
 import re
+from bisect import bisect_left
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -21,6 +22,7 @@ from app.engineering_models import EngineeringDocumentClass, EntityKind
 
 EXTRACTOR_METHOD = "deterministic_identifiers"
 EXTRACTOR_VERSION = "sin-91.1"
+MAX_IDENTIFIER_LENGTH = 255
 
 _SIGNAL = re.compile(r"\b((?:Line|CV\d{2})\.[A-Za-z][A-Za-z0-9]*)\b")
 _COMPONENT = re.compile(r"\b(CV\d{2}-[BMUS]\d+|CL12-[A-Z0-9-]+)\b")
@@ -71,35 +73,37 @@ def extract_mentions(
     lowered = (path_hint or filename).lower()
     revision_role = "superseded" if "rev_old" in lowered or "bom_old" in lowered else "current"
     if lowered.endswith((".xlsx", ".csv", ".tsv")):
-        return _from_table(
+        mentions = _from_table(
             content,
             filename=filename,
             path_hint=path_hint,
             document_class=document_class,
             revision_role=revision_role,
         )
-    if lowered.endswith(".pdf"):
+    elif lowered.endswith(".pdf"):
         pages = extract_pdf_pages(content)
-        return _from_pages(
+        mentions = _from_pages(
             pages,
             filename=filename,
             path_hint=path_hint,
             document_class=document_class,
             locator_kind="page",
         )
-    if lowered.endswith((".md", ".txt", ".scl", ".awl", ".xml")):
+    elif lowered.endswith((".md", ".txt", ".scl", ".awl", ".xml")):
         pages = extract_text_pages(content)
         locator_kind = (
             "line_range" if lowered.endswith((".scl", ".awl", ".xml", ".txt", ".md")) else "page"
         )
-        return _from_pages(
+        mentions = _from_pages(
             pages,
             filename=filename,
             path_hint=path_hint,
             document_class=document_class,
             locator_kind=locator_kind,
         )
-    return ()
+    else:
+        return ()
+    return tuple(item for item in mentions if _fits_identifier(item.name))
 
 
 def _headers(row: TableRow) -> tuple[str, ...]:
@@ -544,6 +548,7 @@ def _from_pages(
     mentions: list[ExtractedMention] = []
     seen: set[tuple[EntityKind, str, int]] = set()
     for page_number, text in pages:
+        offsets = _newline_offsets(text) if locator_kind != "page" else ()
         for kind, pattern in (
             (EntityKind.signal, _SIGNAL),
             (EntityKind.component, _COMPONENT),
@@ -564,7 +569,7 @@ def _from_pages(
                         "artifact": filename,
                     }
                 else:
-                    line_start = _line_of(text, match.start())
+                    line_start = _line_of(offsets, match.start())
                     evidence = {
                         "locator_kind": "line_range",
                         "line_start": line_start,
@@ -587,8 +592,16 @@ def _from_pages(
     return tuple(mentions)
 
 
-def _line_of(text: str, index: int) -> int:
-    return text.count("\n", 0, index) + 1
+def _newline_offsets(text: str) -> tuple[int, ...]:
+    return tuple(index for index, character in enumerate(text) if character == "\n")
+
+
+def _line_of(offsets: tuple[int, ...], index: int) -> int:
+    return bisect_left(offsets, index) + 1
+
+
+def _fits_identifier(name: str) -> bool:
+    return bool(name) and len(name) <= MAX_IDENTIFIER_LENGTH
 
 
 def _as_number(value: str) -> int | float | str:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from app.engineering_models import EngineeringDocumentClass, EntityKind
 from app.evaluation.machine_intelligence.artifacts import binary_files, source_texts
-from app.services.entity_extract import extract_mentions
+from app.services.entity_extract import MAX_IDENTIFIER_LENGTH, extract_mentions
 
 
 def test_io_list_extracts_signals_with_addresses():
@@ -89,6 +89,35 @@ def test_hardware_name_is_an_alias():
     )
     cpu = next(item for item in mentions if item.name == "CL12-CPU")
     assert "CPU-CL12" in cpu.aliases
+
+
+def test_text_line_locators_use_precomputed_offsets():
+    body = "header\nCV01.Alpha\nCV01.Beta\n"
+    mentions = extract_mentions(
+        content=body.encode(),
+        filename="notes.txt",
+        path_hint="notes.txt",
+        document_class=EngineeringDocumentClass.manual,
+    )
+    by_name = {item.name: item for item in mentions}
+    assert by_name["CV01.Alpha"].evidence["line_start"] == 2
+    assert by_name["CV01.Beta"].evidence["line_start"] == 3
+
+
+def test_overlong_table_identifier_is_skipped():
+    long_name = "T" * (MAX_IDENTIFIER_LENGTH + 1)
+    content = (
+        f"tag,kind,qty,revision,power_kw\n{long_name},motor,1,A,1\nCV01-M1,motor,1,A,5.5\n"
+    ).encode()
+    mentions = extract_mentions(
+        content=content,
+        filename="bom.csv",
+        path_hint="bom.csv",
+        document_class=EngineeringDocumentClass.bom,
+    )
+    names = {item.name for item in mentions}
+    assert "CV01-M1" in names
+    assert long_name not in names
 
 
 def test_extraction_is_reproducible():
