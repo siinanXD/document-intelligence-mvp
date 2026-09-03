@@ -11,8 +11,8 @@ from app.evaluation.generation_runner import (
 )
 from app.evaluation.judge import JudgeVerdict, LiveJudge, NullJudge
 from app.providers.generation import GenerationResult
-from app.providers.registry import ProviderConfigurationError
 from app.providers.prompts import GENERATION_EVAL_JUDGE
+from app.providers.registry import ProviderConfigurationError
 from app.services.qa import AskResult
 
 
