@@ -135,7 +135,7 @@ async def test_the_batch_size_bounds_what_is_claimed(sessions, storage, workspac
 
 async def test_claim_limit_holds_when_queue_order_ties(sessions, storage, workspace):
     document_ids = await _queue(sessions, storage, workspace, count=3)
-    tied_at = datetime(2026, 1, 1, tzinfo=UTC)
+    tied_at = datetime(2000, 1, 1, tzinfo=UTC)
     async with sessions() as session:
         await session.execute(
             update(IngestionJob)
@@ -145,11 +145,20 @@ async def test_claim_limit_holds_when_queue_order_ties(sessions, storage, worksp
         await session.commit()
 
     async with sessions() as session:
+        expected_ids = sorted(
+            (
+                await session.execute(
+                    select(IngestionJob.id).where(IngestionJob.document_id.in_(document_ids))
+                )
+            )
+            .scalars()
+            .all()
+        )[:2]
         claimed = await jobs_service.claim(session, worker_id="worker-tied", limit=2)
         await session.commit()
 
     assert len(claimed) == 2
-    assert [job.id for job in claimed] == sorted(job.id for job in claimed)
+    assert [job.id for job in claimed] == expected_ids
 
 
 async def test_a_failing_document_is_recorded_and_the_worker_survives(sessions, storage, workspace):
