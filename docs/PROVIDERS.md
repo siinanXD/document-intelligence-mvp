@@ -27,9 +27,9 @@ hosted inference endpoint. The application only ever sees a base URL.
 
 ```bash
 EMBEDDING_PROVIDER=huggingface
-EMBEDDING_MODEL=BAAI/bge-m3                # identity marker, persisted with vectors
 EMBEDDING_VERSION=v1
 HUGGINGFACE_EMBEDDINGS_BASE_URL=http://embeddings.internal:8080
+HUGGINGFACE_EMBEDDING_MODEL=BAAI/bge-m3     # required identity marker, persisted with vectors
 HUGGINGFACE_EMBEDDING_DIMENSIONS=1024      # required; verified on every response
 HUGGINGFACE_API_KEY=                       # optional bearer token
 HUGGINGFACE_TIMEOUT_SECONDS=30
@@ -41,6 +41,10 @@ marker rather than a request parameter. It is persisted with every indexed
 document (provider, model, version, dimensions), which is what makes a
 configuration change detectable instead of silently mixing embedding spaces.
 
+`HUGGINGFACE_EMBEDDING_MODEL` is deliberately separate from the OpenAI
+`EMBEDDING_MODEL` setting, so selecting Hugging Face cannot inherit an OpenAI
+default as its stored identity.
+
 `HUGGINGFACE_EMBEDDING_DIMENSIONS` must be declared, never guessed: every
 response is checked against it, so a wrong value (or an endpoint swapped to a
 different model) fails before any vector write. The vector collection itself
@@ -51,7 +55,7 @@ a recreation.
 
 These are documented as candidates, not hard-coded anywhere in domain logic.
 Any TEI-compatible model works; pick per deployment and set the three
-variables above accordingly.
+Hugging Face variables above accordingly.
 
 | Model | Dimensions | Notes |
 | --- | --- | --- |

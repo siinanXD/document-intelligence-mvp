@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     # (local container, GPU host outside Railway, hosted inference) is a
     # deployment concern; the application only ever sees this URL.
     huggingface_embeddings_base_url: str | None = None
+    # Separate from EMBEDDING_MODEL so selecting Hugging Face cannot silently
+    # inherit the OpenAI default as its persisted model identity.
+    huggingface_embedding_model: str | None = None
     huggingface_api_key: str | None = None
     # Required with the huggingface provider: the endpoint serves one model
     # whose width the application must not guess. Verified against every
