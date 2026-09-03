@@ -133,7 +133,7 @@ async def test_embed_rejects_a_batch_count_mismatch_even_when_the_total_would_ma
     )
     provider = _provider(client, batch_size=2)
 
-    with pytest.raises(ProviderResponseError, match="1 vectors for a batch of 2 inputs"):
+    with pytest.raises(ProviderResponseError, match=r"1 vector\(s\) for a batch of 2 inputs"):
         await provider.embed(["alpha", "beta", "gamma", "delta"])
 
     assert len(client.calls) == 1
