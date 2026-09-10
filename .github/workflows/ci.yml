@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    # Nur main: Pushes auf Feature-Branches laufen ohnehin ueber den
+    # pull_request-Trigger; "**" hat jeden PR-Push doppelt gerechnet.
+    branches: [main]
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
 
