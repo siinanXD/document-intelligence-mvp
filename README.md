@@ -4,9 +4,9 @@ A multi-tenant document intelligence service. Documents are uploaded, parsed int
 normalized representation, chunked with provenance, embedded, indexed for semantic
 search, and answered over with grounded citations.
 
-The core platform is in place: FastAPI, PostgreSQL and Qdrant wiring, Alembic
-migrations and the embedding, LLM and storage provider interfaces. Ingestion,
-indexing and Q&A land in the following milestones.
+Ingestion, indexing, semantic and lexical search, grounded Q&A and document
+relations are in place on FastAPI, PostgreSQL and Qdrant, with Alembic
+migrations and pluggable embedding, LLM and storage providers.
 
 ## Requirements
 
