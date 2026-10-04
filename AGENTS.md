@@ -84,6 +84,15 @@ The cockpit lives in `web/`. Cloud install runs `npm ci --prefix web` from the
 committed lockfile. Do not add a parallel frontend environment or duplicate
 backend business logic.
 
+## Claude als Ersatz-Agent (SIN-205)
+
+- Cursor zuerst. Hat Cursor kein Guthaben, setze das Label `claude` auf das Issue oder kommentiere `@claude`.
+- Der Workflow `.github/workflows/claude.yml` startet Claude (`claude-code-action@v1`, nur für Nutzer mit Schreibrechten).
+- Draft-PR nur, solange du noch arbeitest. Fertig und lokal geprüft: auf „Ready for review" stellen. Draft-PRs werden nie automatisch gemerged.
+- Nie selbst mergen. Das übernimmt der Auto-Merge (siehe Abschnitt Pull Requests und Merge).
+- Commit-Nachrichten enthalten `Part of SIN-xxx` (die Issue-Nummer des Auftrags).
+- Maximal 3 Reparaturrunden pro Pull Request, dann stoppen und den Blocker melden.
+
 ## Pull Requests und Merge (SIN-208)
 
 - 1 Linear-Issue = 1 PR. Klein halten: lieber zwei PRs als einen großen.
