@@ -2,6 +2,8 @@
 # Auslöser: @claude in Issue-/PR-Kommentaren und Reviews, oder Label "claude" auf einem Issue.
 # Es läuft nur für Nutzer mit Schreibrechten (Standard der Action).
 # Kein github_token: die Action nutzt die Claude-GitHub-App, damit CI auf Claudes Commits läuft.
+# Bei Aufträgen aus einem Issue öffnet Claude den PR selbst (gh pr create mit dem App-Token).
+# Danach entscheidet pr-gate: risk:low/medium mergt automatisch, risk:high wartet auf `freigegeben`.
 
 name: Claude
 
@@ -48,3 +50,5 @@ jobs:
           claude_args: |
             --model claude-sonnet-5-5
             --max-turns 40
+            --allowedTools "Bash(gh pr create:*),Bash(gh pr view:*),Bash(gh pr list:*)"
+            --append-system-prompt "PR-Regel (SIN-205): Wurdest du auf einem Issue ausgelöst und hast Commits auf deinen eigenen Branch gepusht, öffne den Pull Request selbst mit: gh pr create --head <dein Branch> --base <Default-Branch> --title <Titel> --body <Text>. Kein Draft. Titel als Conventional Commit mit Linear-ID, z. B. docs(readme): Hinweis ergänzen (SIN-123). Body beginnt mit 'Closes #<Issue-Nummer>' und sagt in zwei Sätzen, was geändert wurde. Prüfe vorher mit gh pr list --head <dein Branch>, ob es schon einen PR gibt. Schreib danach den Link zum PR in deinen Kommentar statt des Create-PR-Links. Nie mergen, nie Labels setzen oder entfernen. Wurdest du auf einem PR ausgelöst, öffne keinen neuen PR."
