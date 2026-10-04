@@ -334,3 +334,7 @@ Agents and humans follow the same workflow: one issue per branch and pull reques
 small commits, green checks before pushing. See
 [`docs/agent-workflow.md`](docs/agent-workflow.md) for the details and
 [`CLAUDE.md`](CLAUDE.md) for architecture, tenant-isolation, provider and privacy rules.
+
+## Pull requests
+
+Every PR is checked automatically (CI, `pr-title`, `merge-gate`). PRs labeled `risk:low` or `risk:medium` merge on their own once all checks are green; `risk:high` waits for the owner label `freigegeben`. Details: `AGENTS.md`, section "Pull Requests und Merge".
