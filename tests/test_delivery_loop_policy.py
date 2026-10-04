@@ -9,7 +9,7 @@ AUTOMATION_2 = ROOT / ".cursor" / "automations" / "2-repair-failed-ci.md"
 AUTOMATION_4 = ROOT / ".cursor" / "automations" / "4-guarded-auto-merge-and-continue.md"
 AUTOMATIONS_DOC = ROOT / "docs" / "AUTOMATIONS.md"
 WORKFLOW = ROOT / "docs" / "agent-workflow.md"
-MERGE_GATE = ROOT / ".github" / "workflows" / "merge-gate.yml"
+MERGE_GATE = ROOT / ".github" / "workflows" / "pr-gate.yml"
 
 # The two Codex P1 failure modes this file exists to keep closed.
 PR_MERGED_WHILE_MAIN_CI_PENDING = {
@@ -148,12 +148,14 @@ def test_docs_keep_the_post_merge_routing_table():
 
 
 def test_merge_gate_workflow_still_blocks_only_the_owner_label():
+    # SIN-208: the gate lives in pr-gate.yml (job merge-gate) and still honors the owner labels.
     # PyYAML 1.1 treats the key `on` as boolean True, so assert against source.
     text = MERGE_GATE.read_text(encoding="utf-8")
-    assert "name: Merge gate" in text
+    assert "name: pr-gate" in text
     assert "labeled" in text and "unlabeled" in text
     assert "owner-approval-required" in text
-    assert "exit 1" in text
+    assert "owner-approved" in text
+    assert "core.setFailed" in text
     payload = yaml.safe_load(text)
-    assert payload["name"] == "Merge gate"
+    assert payload["name"] == "pr-gate"
     assert "merge-gate" in payload["jobs"]
