@@ -31,7 +31,7 @@ loop extends them and adds no second control plane.
 | --- | --- |
 | Automation definitions (triggers, tools, prompts) | `.cursor/automations/` |
 | Guarded auto-merge policy and risk gates | this file + `docs/agent-workflow.md` |
-| Mechanical merge gate for the risk label | `.github/workflows/merge-gate.yml` |
+| Mechanical merge gate for the risk label | `.github/workflows/pr-gate.yml` (job `merge-gate`; since SIN-208 it also sets `risk:low/medium/high` from the changed files and enables squash auto-merge for low/medium) |
 | CI checks | `.github/workflows/ci.yml` (`lint-and-test`, `frontend`, `parsing`) |
 | Independent review | Codex (external) + Copilot review requested from CI |
 | Local check equivalent | `bash .cursor/check.sh` |
@@ -81,8 +81,9 @@ involves any of the following:
 For gated changes the loop still implements (when scope is clear), tests,
 reviews and fully prepares the PR - then adds `owner-approval-required`,
 requests one concise owner decision, and stops before merge. The
-`merge-gate` workflow fails while `owner-approval-required` is present and
-`owner-approved` is absent, so GitHub auto-merge cannot complete even if it
+`merge-gate` job (`.github/workflows/pr-gate.yml`) fails while the PR is
+`risk:high` or carries `owner-approval-required` and neither `owner-approved`
+nor `freigegeben` is present, so GitHub auto-merge cannot complete even if it
 was enabled earlier. The owner releases the gate by adding `owner-approved`
 alongside `owner-approval-required` - the required label stays in place for
 the audit record, and `owner-approved` is what opens the gate. Removing
