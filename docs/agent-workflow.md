@@ -51,7 +51,7 @@ Merging follows the guarded auto-merge policy in `docs/AUTOMATIONS.md`:
 * Never commit secrets or a filled `.env`. Rotate anything leaked.
 * Never make paid external API calls from tests or CI - mock providers.
 * Never skip, disable or delete a test to make CI green.
-* Extend the existing CI workflow rather than adding a parallel one. (`merge-gate.yml` is the documented exception: it must react to label events without restarting the test matrix.)
+* Extend the existing CI workflow rather than adding a parallel one. (`pr-gate.yml` is the documented exception: it must react to label events without restarting the test matrix.)
 * Deploying and any outward-facing action beyond the guarded auto-merge policy stay with the repository owner.
 
 ## CI
