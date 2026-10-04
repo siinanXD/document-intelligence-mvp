@@ -7,6 +7,8 @@ on:
     branches: [main]
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
+  # Startet post-merge.yml nach einem Auto-Merge (SIN-213).
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
