@@ -1,0 +1,22 @@
+# Nicht in den Cursor-Index / Kontext (Vorlage: C:\dev\Tools\Cursor)
+node_modules/
+.venv/
+venv/
+__pycache__/
+.next/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage/
+playwright-report/
+test-results/
+.turbo/
+.vercel/
+.env
+.env.*
+!.env.example
+*.lock
+pnpm-lock.yaml
+package-lock.json
